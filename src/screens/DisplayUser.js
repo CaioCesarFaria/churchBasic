@@ -1,10 +1,30 @@
-// DiplayUser.js
-import React, { useState } from "react";
+// DisplayUser.js
+import React, { useState, useContext } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, Modal } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { AuthContext } from "../context/AuthContext";
 
-export default function DisplayUser() {
+export default function DisplayUser({ isLoggedIn, userName, onLoginPress }) {
   const [modalVisible, setModalVisible] = useState(false);
+  const { user } = useContext(AuthContext);
+
+  const handleBellPress = () => {
+    if (user) {
+      // Se estiver logado, pode navegar para notificações
+      console.log("Usuário logado - mostrar notificações");
+      // Aqui você pode navegar para uma tela de notificações
+    } else {
+      // Se não estiver logado, mostra o modal
+      setModalVisible(true);
+    }
+  };
+
+  const handleGoToLogin = () => {
+    setModalVisible(false);
+    if (onLoginPress) {
+      onLoginPress();
+    }
+  };
 
   return (
     <>
@@ -13,11 +33,13 @@ export default function DisplayUser() {
 
       <View style={styles.containerDisplay}>
         <Ionicons name="person-circle-outline" size={40} color="#555" />
-        <Text style={styles.greeting}>Olá, Usuário!</Text>
+        <Text style={styles.greeting}>
+          Olá, {userName || "Visitante"}!
+        </Text>
 
         <TouchableOpacity
           style={styles.bellButton}
-          onPress={() => setModalVisible(true)}
+          onPress={handleBellPress}
         >
           <Ionicons name="notifications-outline" size={28} color="#555" />
         </TouchableOpacity>
@@ -33,7 +55,7 @@ export default function DisplayUser() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalText}>
-              Você não está logando. Para ter acesso a esse recurso é necessário
+              Você não está logado. Para ter acesso a esse recurso é necessário
               fazer login
             </Text>
 
@@ -47,10 +69,7 @@ export default function DisplayUser() {
 
               <TouchableOpacity
                 style={[styles.modalButton, { backgroundColor: "#007bff" }]}
-                onPress={() => {
-                  setModalVisible(false);
-                  console.log("Ir pra login");
-                }}
+                onPress={handleGoToLogin}
               >
                 <Text style={[styles.buttonText, { color: "#fff" }]}>
                   Ir pra login
@@ -75,14 +94,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#fff",
     padding: 15,
-    borderBottomLeftRadius:15,
-    borderBottomRightRadius:15,
+    borderBottomLeftRadius: 15,
+    borderBottomRightRadius: 15,
     elevation: 3,
     shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowRadius: 5,
     shadowOffset: { width: 0, height: 2 },
-    
   },
   greeting: {
     fontSize: 18,
