@@ -6,6 +6,7 @@ export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [userData, setUserData] = useState(null); // Dados extras (Firestore)
 
   // Carregar usuário salvo no AsyncStorage ao iniciar o app
   useEffect(() => {
@@ -13,7 +14,9 @@ export const AuthProvider = ({ children }) => {
       try {
         const storedUser = await AsyncStorage.getItem("user");
         if (storedUser) {
-          setUser(JSON.parse(storedUser));
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          setUserData(parsedUser); // mantém compatível
         }
       } catch (error) {
         console.log("Erro ao carregar usuário:", error);
@@ -27,6 +30,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await AsyncStorage.setItem("user", JSON.stringify(userData));
       setUser(userData);
+      setUserData(userData);
     } catch (error) {
       console.log("Erro ao salvar usuário:", error);
     }
@@ -43,7 +47,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, userData, setUserData, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

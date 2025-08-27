@@ -10,6 +10,8 @@ import CadastroScreen from "./src/screens/Cadastro";
 import MinisteriosScreen from "./src/screens/Ministerios";
 import ProfileScreen from "./src/screens/Profile";
 import AdminMaster from "./src/screens/Administradores/AdminMaster";
+import NewMinisterio from "./src/screens/Administradores/NewMinisterio";
+import NewLider from "./src/screens/Administradores/NewLider";
 
 const Stack = createNativeStackNavigator();
 
@@ -88,50 +90,27 @@ export default function App() {
           }}
         />
 
-        {/* Páginas Administrativas */}
+        {/* Telas Administrativas - Cadastros */}
         <Stack.Screen
-          name="ResponsaveisAdmin"
-          component={() => <Text>Responsáveis Admin - Em desenvolvimento</Text>}
+          name="NewMinisterio"
+          component={NewMinisterio}
           options={{
-            title: "Gerenciar Responsáveis",
-            headerStyle: { backgroundColor: "#fff" },
-            headerTitleStyle: { color: "#333" },
-            headerTintColor: "#B8986A",
+            headerShown: false,
           }}
         />
 
         <Stack.Screen
-          name="RelatoriosAdmin"
-          component={() => <Text>Relatórios Admin - Em desenvolvimento</Text>}
+          name="NewLider"
+          component={NewLider}
           options={{
-            title: "Relatórios",
-            headerStyle: { backgroundColor: "#fff" },
-            headerTitleStyle: { color: "#333" },
-            headerTintColor: "#B8986A",
+            headerShown: false,
           }}
         />
 
-        <Stack.Screen
-          name="MinisteriosAdmin"
-          component={() => <Text>Ministérios Admin - Em desenvolvimento</Text>}
-          options={{
-            title: "Gerenciar Ministérios",
-            headerStyle: { backgroundColor: "#fff" },
-            headerTitleStyle: { color: "#333" },
-            headerTintColor: "#B8986A",
-          }}
-        />
+        {/* Páginas Administrativas - Gerenciamento */}
+        
 
-        <Stack.Screen
-          name="ConfiguracoesAdmin"
-          component={() => <Text>Configurações Admin - Em desenvolvimento</Text>}
-          options={{
-            title: "Configurações",
-            headerStyle: { backgroundColor: "#fff" },
-            headerTitleStyle: { color: "#333" },
-            headerTintColor: "#B8986A",
-          }}
-        />
+        
       </Stack.Navigator>
     </NavigationContainer>
     </AuthProvider>

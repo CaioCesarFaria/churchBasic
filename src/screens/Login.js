@@ -1,4 +1,5 @@
 // Login.js
+// Login.js
 import React, { useState, useContext } from "react";
 import {
   View,
@@ -37,28 +38,45 @@ export default function LoginScreen({ navigation }) {
       const userCredential = await signInWithEmailAndPassword(auth, email, senha);
       const user = userCredential.user;
       
-      // Buscar dados do usuário no Firestore
-      const userDoc = await getDoc(doc(db, "users", user.uid));
+      // Buscar dados do usuário no Firestore - primeiro tenta na coleção churchBasico/users/members
+      let userDoc = await getDoc(doc(db, "churchBasico", "users", "members", user.uid));
+      let userData = null;
       
       if (userDoc.exists()) {
-        const userData = userDoc.data();
+        userData = userDoc.data();
+      } else {
+        // Se não encontrar em members, tenta na coleção users direta (para adminMaster)
+        userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          userData = userDoc.data();
+        }
+      }
+      
+      if (userData) {
         setUserData(userData);
         
-        // Verificar se é admin master e redirecionar
+        // Verificar tipo de usuário e redirecionar
         if (userData.userType === "adminMaster") {
-          Alert.alert("Sucesso", "Login de Admin realizado com sucesso!", [
+          Alert.alert("Sucesso", "Login de Admin Master realizado com sucesso!", [
             { 
               text: "OK", 
               onPress: () => navigation.navigate("AdminMaster")
             }
           ]);
+        } else if (userData.userType === "admin") {
+          // Para futuros administradores
+          Alert.alert("Sucesso", "Login de Administrador realizado com sucesso!", [
+            { text: "OK", onPress: () => navigation.goBack() }
+          ]);
         } else {
+          // Usuário normal (member)
           Alert.alert("Sucesso", "Login realizado com sucesso!", [
             { text: "OK", onPress: () => navigation.goBack() }
           ]);
         }
       } else {
-        // Se não encontrar dados do usuário no Firestore, login normal
+        // Se não encontrar dados do usuário no Firestore, login normal como member
+        setUserData({ userType: "member", name: user.displayName || user.email });
         Alert.alert("Sucesso", "Login realizado com sucesso!", [
           { text: "OK", onPress: () => navigation.goBack() }
         ]);
@@ -85,6 +103,9 @@ export default function LoginScreen({ navigation }) {
           break;
         case "auth/network-request-failed":
           errorMessage = "Erro de conexão. Verifique sua internet";
+          break;
+        case "auth/invalid-credential":
+          errorMessage = "Credenciais inválidas. Verifique email e senha";
           break;
         default:
           errorMessage = "Erro ao fazer login. Tente novamente";
