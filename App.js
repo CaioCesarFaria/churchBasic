@@ -9,6 +9,7 @@ import LoginScreen from "./src/screens/Login";
 import CadastroScreen from "./src/screens/Cadastro";
 import MinisteriosScreen from "./src/screens/Ministerios";
 import ProfileScreen from "./src/screens/Profile";
+import AdminMaster from "./src/screens/Administradores/AdminMaster";
 
 const Stack = createNativeStackNavigator();
 
@@ -75,6 +76,60 @@ export default function App() {
           component={ProfileScreen}
           options={{
             headerShown: false,
+          }}
+        />
+
+        {/* Tela AdminMaster */}
+        <Stack.Screen
+          name="AdminMaster"
+          component={AdminMaster}
+          options={{
+            headerShown: false,
+          }}
+        />
+
+        {/* Páginas Administrativas */}
+        <Stack.Screen
+          name="ResponsaveisAdmin"
+          component={() => <Text>Responsáveis Admin - Em desenvolvimento</Text>}
+          options={{
+            title: "Gerenciar Responsáveis",
+            headerStyle: { backgroundColor: "#fff" },
+            headerTitleStyle: { color: "#333" },
+            headerTintColor: "#B8986A",
+          }}
+        />
+
+        <Stack.Screen
+          name="RelatoriosAdmin"
+          component={() => <Text>Relatórios Admin - Em desenvolvimento</Text>}
+          options={{
+            title: "Relatórios",
+            headerStyle: { backgroundColor: "#fff" },
+            headerTitleStyle: { color: "#333" },
+            headerTintColor: "#B8986A",
+          }}
+        />
+
+        <Stack.Screen
+          name="MinisteriosAdmin"
+          component={() => <Text>Ministérios Admin - Em desenvolvimento</Text>}
+          options={{
+            title: "Gerenciar Ministérios",
+            headerStyle: { backgroundColor: "#fff" },
+            headerTitleStyle: { color: "#333" },
+            headerTintColor: "#B8986A",
+          }}
+        />
+
+        <Stack.Screen
+          name="ConfiguracoesAdmin"
+          component={() => <Text>Configurações Admin - Em desenvolvimento</Text>}
+          options={{
+            title: "Configurações",
+            headerStyle: { backgroundColor: "#fff" },
+            headerTitleStyle: { color: "#333" },
+            headerTintColor: "#B8986A",
           }}
         />
       </Stack.Navigator>

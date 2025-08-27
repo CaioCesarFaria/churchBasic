@@ -1,5 +1,5 @@
 // Login.js
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import {
   View,
   Text,
@@ -14,13 +14,16 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { auth } from "../Firebase/FirebaseConfig";
+import { auth, db } from "../Firebase/FirebaseConfig";
+import { doc, getDoc } from "firebase/firestore";
+import { AuthContext } from "../context/AuthContext";
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { setUserData } = useContext(AuthContext);
 
   const handleLogin = async () => {
     if (!email || !senha) {
@@ -31,10 +34,35 @@ export default function LoginScreen({ navigation }) {
     setLoading(true);
     
     try {
-      await signInWithEmailAndPassword(auth, email, senha);
-      Alert.alert("Sucesso", "Login realizado com sucesso!", [
-        { text: "OK", onPress: () => navigation.goBack() }
-      ]);
+      const userCredential = await signInWithEmailAndPassword(auth, email, senha);
+      const user = userCredential.user;
+      
+      // Buscar dados do usuário no Firestore
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        setUserData(userData);
+        
+        // Verificar se é admin master e redirecionar
+        if (userData.userType === "adminMaster") {
+          Alert.alert("Sucesso", "Login de Admin realizado com sucesso!", [
+            { 
+              text: "OK", 
+              onPress: () => navigation.navigate("AdminMaster")
+            }
+          ]);
+        } else {
+          Alert.alert("Sucesso", "Login realizado com sucesso!", [
+            { text: "OK", onPress: () => navigation.goBack() }
+          ]);
+        }
+      } else {
+        // Se não encontrar dados do usuário no Firestore, login normal
+        Alert.alert("Sucesso", "Login realizado com sucesso!", [
+          { text: "OK", onPress: () => navigation.goBack() }
+        ]);
+      }
     } catch (error) {
       console.log("Erro no login:", error);
       let errorMessage = "Erro ao fazer login";

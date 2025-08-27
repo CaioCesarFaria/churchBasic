@@ -11,6 +11,7 @@ import ProgramacaoScreen from "../screens/Programacao";
 import HomeScreen from "../screens/Home";
 import GenerosidadeScreen from "../screens/Generosidade";
 import MaisScreen from "../screens/Mais";
+import AdminMaster from "../screens/Administradores/AdminMaster";
 import { AuthContext } from "../context/AuthContext";
 
 const Tab = createBottomTabNavigator();
@@ -35,7 +36,7 @@ function LockedScreen({ screenName, onLoginPress }) {
 }
 
 export default function TabsNavigation() {
-  const { user } = useContext(AuthContext);
+  const { user, userData } = useContext(AuthContext);
   const navigation = useNavigation();
   const [modalVisible, setModalVisible] = useState(false);
 
@@ -53,7 +54,13 @@ export default function TabsNavigation() {
     return user ? <ConteudosScreen /> : <LockedScreen screenName="Conteúdos" onLoginPress={handleLoginPress} />;
   };
 
-  
+  // Verificar se é adminMaster para mostrar a tela AdminMaster no lugar da Home
+  const HomeComponent = () => {
+    if (userData?.userType === "adminMaster") {
+      return <AdminMaster navigation={navigation} />;
+    }
+    return <HomeScreen />;
+  };
 
   return (
     <>
@@ -95,7 +102,7 @@ export default function TabsNavigation() {
       >
         <Tab.Screen name="Conteúdos" component={ConteudosProtected} />
         <Tab.Screen name="Programação" component={ProgramacaoScreen} />
-        <Tab.Screen name="Home" component={HomeScreen} />
+        <Tab.Screen name="Home" component={HomeComponent} />
         <Tab.Screen name="Generosidade" component={GenerosidadeScreen} />
         <Tab.Screen name="Mais" component={MaisScreen} />
       </Tab.Navigator>
