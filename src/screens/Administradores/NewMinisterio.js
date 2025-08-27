@@ -22,16 +22,16 @@ export default function NewMinisterio({ navigation }) {
   const [responsavel, setResponsavel] = useState("");
   const [contato, setContato] = useState("");
   const [loading, setLoading] = useState(false);
-
+  const [ministerio, setMinisterio] = useState("");
   const formatPhone = (text) => {
-    const numbers = text.replace(/\D/g, '');
-    
+    const numbers = text.replace(/\D/g, "");
+
     if (numbers.length <= 11) {
       const match = numbers.match(/^(\d{0,2})(\d{0,5})(\d{0,4})$/);
       if (match) {
-        let formatted = '';
+        let formatted = "";
         if (match[1]) formatted += `(${match[1]}`;
-        if (match[1] && match[1].length === 2) formatted += ') ';
+        if (match[1] && match[1].length === 2) formatted += ") ";
         if (match[2]) formatted += match[2];
         if (match[3]) formatted += `-${match[3]}`;
         return formatted;
@@ -47,7 +47,10 @@ export default function NewMinisterio({ navigation }) {
 
   const handleSalvar = async () => {
     if (!nome || !descricao) {
-      Alert.alert("Erro", "Por favor, preencha pelo menos o nome e a descrição do ministério");
+      Alert.alert(
+        "Erro",
+        "Por favor, preencha pelo menos o nome e a descrição do ministério"
+      );
       return;
     }
 
@@ -55,21 +58,24 @@ export default function NewMinisterio({ navigation }) {
 
     try {
       // Salvar ministério no Firestore
-      const docRef = await addDoc(collection(db, "churchBasico", "ministerios", "list"), {
-        nome: nome.trim(),
-        descricao: descricao.trim(),
-        responsavel: responsavel.trim() || null,
-        contato: contato || null,
-        ativo: true,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+      const docRef = await addDoc(
+        collection(db, "churchBasico", "ministerios", "list"),
+        {
+          nome: nome.trim(),
+          descricao: descricao.trim(),
+          responsavel: responsavel.trim() || null,
+          contato: contato || null,
+          ativo: true,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }
+      );
 
       console.log("Ministério criado com ID:", docRef.id);
 
       Alert.alert("Sucesso", "Ministério cadastrado com sucesso!", [
-        { 
-          text: "OK", 
+        {
+          text: "OK",
           onPress: () => {
             // Limpar campos
             setNome("");
@@ -77,10 +83,9 @@ export default function NewMinisterio({ navigation }) {
             setResponsavel("");
             setContato("");
             navigation.goBack();
-          }
-        }
+          },
+        },
       ]);
-
     } catch (error) {
       console.log("Erro ao cadastrar ministério:", error);
       Alert.alert("Erro", "Erro ao cadastrar ministério. Tente novamente.");
@@ -91,13 +96,13 @@ export default function NewMinisterio({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
@@ -115,7 +120,12 @@ export default function NewMinisterio({ navigation }) {
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Nome do Ministério *</Text>
               <View style={styles.inputWrapper}>
-                <Ionicons name="business-outline" size={20} color="#999" style={styles.inputIcon} />
+                <Ionicons
+                  name="business-outline"
+                  size={20}
+                  color="#999"
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={styles.input}
                   placeholder="Ex: Ministério de Louvor"
@@ -129,7 +139,12 @@ export default function NewMinisterio({ navigation }) {
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Descrição *</Text>
               <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
-                <Ionicons name="document-text-outline" size={20} color="#999" style={[styles.inputIcon, styles.textAreaIcon]} />
+                <Ionicons
+                  name="document-text-outline"
+                  size={20}
+                  color="#999"
+                  style={[styles.inputIcon, styles.textAreaIcon]}
+                />
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   placeholder="Descreva os objetivos e atividades do ministério..."
@@ -146,7 +161,12 @@ export default function NewMinisterio({ navigation }) {
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Responsável</Text>
               <View style={styles.inputWrapper}>
-                <Ionicons name="person-outline" size={20} color="#999" style={styles.inputIcon} />
+                <Ionicons
+                  name="person-outline"
+                  size={20}
+                  color="#999"
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={styles.input}
                   placeholder="Nome do responsável (opcional)"
@@ -160,7 +180,12 @@ export default function NewMinisterio({ navigation }) {
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Contato</Text>
               <View style={styles.inputWrapper}>
-                <Ionicons name="call-outline" size={20} color="#999" style={styles.inputIcon} />
+                <Ionicons
+                  name="call-outline"
+                  size={20}
+                  color="#999"
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={styles.input}
                   placeholder="Telefone para contato (opcional)"
@@ -174,7 +199,7 @@ export default function NewMinisterio({ navigation }) {
             </View>
 
             <View style={styles.buttonContainer}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.cancelButton, { opacity: loading ? 0.7 : 1 }]}
                 onPress={() => navigation.goBack()}
                 disabled={loading}
@@ -182,7 +207,7 @@ export default function NewMinisterio({ navigation }) {
                 <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.saveButton, { opacity: loading ? 0.7 : 1 }]}
                 onPress={handleSalvar}
                 disabled={loading}

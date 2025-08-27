@@ -100,9 +100,9 @@ export default function TabsNavigation() {
         })}
         initialRouteName="Home"
       >
+        <Tab.Screen name="Home" component={HomeComponent} />
         <Tab.Screen name="Conteúdos" component={ConteudosProtected} />
         <Tab.Screen name="Programação" component={ProgramacaoScreen} />
-        <Tab.Screen name="Home" component={HomeComponent} />
         <Tab.Screen name="Generosidade" component={GenerosidadeScreen} />
         <Tab.Screen name="Mais" component={MaisScreen} />
       </Tab.Navigator>

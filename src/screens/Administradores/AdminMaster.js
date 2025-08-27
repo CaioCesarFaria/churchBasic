@@ -1,4 +1,5 @@
-import React, { useState, useContext } from "react";
+// AdminMaster.js
+import React, { useState, useContext, useEffect } from "react";
 import {
   View,
   Text,
@@ -12,12 +13,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { AuthContext } from "../../context/AuthContext";
 import { signOut } from "firebase/auth";
-import { auth } from "../../Firebase/FirebaseConfig";
+import { auth, db } from "../../Firebase/FirebaseConfig";
+import { collection, getDocs } from "firebase/firestore";
 
 export default function AdminMaster({ navigation }) {
   const { user, userData, setUserData } = useContext(AuthContext);
   const [loading, setLoading] = useState(false);
   
+  const [membersCount, setMembersCount] = useState(0);
+  const [leadersCount, setLeadersCount] = useState(0);
+  const [ministeriosCount, setMinisteriosCount] = useState(0);
+  const [loadingStats, setLoadingStats] = useState(true);
   const handleLogout = async () => {
     Alert.alert(
       "Sair",
@@ -49,6 +55,41 @@ export default function AdminMaster({ navigation }) {
   const navigateToNewLider = () => {
     navigation.navigate("NewLider");
   };
+
+  // Buscar estatísticas
+  const fetchStatistics = async () => {
+    try {
+      setLoadingStats(true);
+
+      // Membros
+      const membersSnapshot = await getDocs(collection(db, "churchBasico", "users", "members"));
+      const leadersSnapshot = await getDocs(collection(db, "churchBasico", "users", "lideres"));
+
+      // Atualiza membros e líderes
+      setMembersCount(membersSnapshot.size + leadersSnapshot.size);
+      setLeadersCount(leadersSnapshot.size);
+
+      // Contar ministérios únicos dos líderes
+      const ministeriosSet = new Set();
+      leadersSnapshot.forEach(doc => {
+        const data = doc.data();
+        if (data.ministerio) ministeriosSet.add(data.ministerio);
+      });
+      setMinisteriosCount(ministeriosSet.size);
+
+    } catch (error) {
+      console.log("Erro ao buscar estatísticas:", error);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStatistics();
+  }, []);
+
+
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -83,7 +124,7 @@ export default function AdminMaster({ navigation }) {
           disabled={loading}
         >
           <Ionicons name="add-circle-outline" size={24} color="#fff" />
-          <Text style={styles.adminButtonText}>Cadastrar Ministério</Text>
+          <Text style={styles.adminButtonText}>Atribuir Ministério</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
@@ -107,23 +148,32 @@ export default function AdminMaster({ navigation }) {
 
         {/* Statistics Cards */}
         <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
+          <TouchableOpacity 
+            style={styles.statCard} 
+            onPress={() => navigation.navigate("MembersAdm")}
+          >
             <Ionicons name="people-outline" size={32} color="#B8986A" />
-            <Text style={styles.statNumber}>--</Text>
+            <Text style={styles.statNumber}>{loadingStats ? "--" : membersCount}</Text>
             <Text style={styles.statLabel}>Membros</Text>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.statCard}>
+          <TouchableOpacity 
+            style={styles.statCard} 
+            onPress={() => navigation.navigate("MinisteriosAdm")}
+          >
             <Ionicons name="business-outline" size={32} color="#B8986A" />
-            <Text style={styles.statNumber}>--</Text>
+            <Text style={styles.statNumber}>{loadingStats ? "--" : ministeriosCount}</Text>
             <Text style={styles.statLabel}>Ministérios</Text>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.statCard}>
+          <TouchableOpacity 
+            style={styles.statCard} 
+            onPress={() => navigation.navigate("LideresAdm")}
+          >
             <Ionicons name="person-outline" size={32} color="#B8986A" />
-            <Text style={styles.statNumber}>--</Text>
+            <Text style={styles.statNumber}>{loadingStats ? "--" : leadersCount}</Text>
             <Text style={styles.statLabel}>Líderes</Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Management Actions */}

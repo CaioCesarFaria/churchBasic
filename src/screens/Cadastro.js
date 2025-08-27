@@ -86,7 +86,7 @@ export default function CadastroScreen({ navigation }) {
       await updateProfile(user, {
         displayName: nome
       });
-
+      await setDoc(doc(db, "churchBasico", "users"), {}, { merge: true });
       // Salvar dados adicionais no Firestore na coleção churchBasico
       await setDoc(doc(db, "churchBasico", "users", "members", user.uid), {
         name: nome,

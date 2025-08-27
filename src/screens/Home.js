@@ -1,12 +1,12 @@
 // Home.js
 import React, { useState, useContext } from "react";
-import { 
-  StyleSheet, 
-  StatusBar, 
-  Text, 
-  View, 
-  ScrollView, 
-  TouchableOpacity 
+import {
+  StyleSheet,
+  StatusBar,
+  Text,
+  View,
+  ScrollView,
+  TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,17 +17,18 @@ import CardVideo from "../components/CardVideo";
 import { AuthContext } from "../context/AuthContext";
 
 export default function HomeScreen() {
-  const { user } = useContext(AuthContext);
+  const { user, userData, setUserData } = useContext(AuthContext);
+
   const navigation = useNavigation();
   const [expandedSections, setExpandedSections] = useState({
     edificacao: true,
-    ficadentr: true
+    ficadentr: true,
   });
 
   const toggleSection = (section) => {
-    setExpandedSections(prev => ({
+    setExpandedSections((prev) => ({
       ...prev,
-      [section]: !prev[section]
+      [section]: !prev[section],
     }));
   };
 
@@ -42,10 +43,10 @@ export default function HomeScreen() {
         <Text style={styles.toggleText}>
           {expandedSections[section] ? "OCULTAR" : "EXPANDIR"}
         </Text>
-        <Ionicons 
-          name={expandedSections[section] ? "chevron-up" : "chevron-down"} 
-          size={16} 
-          color="#666" 
+        <Ionicons
+          name={expandedSections[section] ? "chevron-up" : "chevron-down"}
+          size={16}
+          color="#666"
         />
       </TouchableOpacity>
     </View>
@@ -58,18 +59,39 @@ export default function HomeScreen() {
         <Topo />
         <DisplayUser
           isLoggedIn={!!user}
-          userName={user?.displayName || user?.email?.split("@")[0] || "Visitante"}
+          userName={userData?.name || user?.displayName || user?.email}
           onLoginPress={handleLoginPress}
         />
-        
+        {!user && !userData && (
+          <View style={styles.notLoggedContainer}>
+            <Text style={styles.notLoggedText}>Você não está logado</Text>
+
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={styles.loginButton}
+                onPress={() => navigation.navigate("Login")}
+              >
+                <Text style={styles.buttonText}>Entrar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.registerButton}
+                onPress={() => navigation.navigate("Cadastro")}
+              >
+                <Text style={styles.buttonText}>Cadastre-se</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Seção Para sua edificação */}
         <View style={styles.section}>
-          <SectionHeader 
+          <SectionHeader
             title="Eventos"
             section="edificacao"
             onToggle={() => toggleSection("edificacao")}
           />
-          
+
           {expandedSections.edificacao && (
             <View style={styles.sectionContent}>
               <CardVideo
@@ -79,7 +101,7 @@ export default function HomeScreen() {
                 category="Louvor"
                 videoId="mX8A3M7pL3k"
               />
-              
+
               <CardVideo
                 thumbnail="https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg"
                 title="Grande é o Senhor"
@@ -87,7 +109,7 @@ export default function HomeScreen() {
                 category="Adoração"
                 videoId="dQw4w9WgXcQ"
               />
-              
+
               <TouchableOpacity style={styles.viewAllButton}>
                 <Text style={styles.viewAllText}>VER TODAS</Text>
               </TouchableOpacity>
@@ -97,12 +119,12 @@ export default function HomeScreen() {
 
         {/* Seção Fique por dentro */}
         <View style={styles.section}>
-          <SectionHeader 
+          <SectionHeader
             title="Programação"
             section="ficadentr"
             onToggle={() => toggleSection("ficadentr")}
           />
-          
+
           {expandedSections.ficadentr && (
             <View style={styles.sectionContent}>
               <View style={styles.newsGrid}>
@@ -112,7 +134,7 @@ export default function HomeScreen() {
                   </View>
                   <Text style={styles.newsTitle}>Geração Z</Text>
                 </View>
-                
+
                 <View style={styles.newsItem}>
                   <View style={styles.newsIconContainer}>
                     <Ionicons name="laptop-outline" size={24} color="#B8986A" />
@@ -120,7 +142,7 @@ export default function HomeScreen() {
                   <Text style={styles.newsTitle}>Marketing Online</Text>
                 </View>
               </View>
-              
+
               <TouchableOpacity style={styles.viewAllButton}>
                 <Text style={styles.viewAllText}>VER TODAS</Text>
               </TouchableOpacity>
@@ -136,6 +158,40 @@ const styles = StyleSheet.create({
   containerHome: {
     backgroundColor: "#e0e0e0",
     flex: 1,
+  },
+  notLoggedContainer: {
+    padding: 16,
+    alignItems: "center",
+  },
+  notLoggedText: {
+    fontSize: 16,
+    color: "#333",
+    marginBottom: 12,
+  },
+  buttonRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "80%",
+  },
+  loginButton: {
+    backgroundColor: "#B8986A",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  registerButton: {
+    backgroundColor: "#555",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+    textAlign: "center",
   },
   section: {
     backgroundColor: "#fff",

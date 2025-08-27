@@ -12,6 +12,9 @@ import ProfileScreen from "./src/screens/Profile";
 import AdminMaster from "./src/screens/Administradores/AdminMaster";
 import NewMinisterio from "./src/screens/Administradores/NewMinisterio";
 import NewLider from "./src/screens/Administradores/NewLider";
+import MembersAdm from "./src/screens/Administradores/MembersAdm";
+import MinisteriosAdm from "./src/screens/Administradores/MinisteriosAdm";
+import LideresAdm from "./src/screens/Administradores/LideresAdm";
 
 const Stack = createNativeStackNavigator();
 
@@ -109,7 +112,9 @@ export default function App() {
 
         {/* Páginas Administrativas - Gerenciamento */}
         
-
+          <Stack.Screen name="MembersAdm" component={MembersAdm} />
+<Stack.Screen name="MinisteriosAdm" component={MinisteriosAdm} />
+<Stack.Screen name="LideresAdm" component={LideresAdm} />
         
       </Stack.Navigator>
     </NavigationContainer>

@@ -78,7 +78,7 @@ export default function LoginScreen({ navigation }) {
         // Se não encontrar dados do usuário no Firestore, login normal como member
         setUserData({ userType: "member", name: user.displayName || user.email });
         Alert.alert("Sucesso", "Login realizado com sucesso!", [
-          { text: "OK", onPress: () => navigation.goBack() }
+          { text: "OK", onPress: () => navigation.navigate("Home") }
         ]);
       }
     } catch (error) {
