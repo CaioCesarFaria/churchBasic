@@ -15,7 +15,7 @@ import NewLider from "./src/screens/Administradores/NewLider";
 import MembersAdm from "./src/screens/Administradores/MembersAdm";
 import MinisteriosAdm from "./src/screens/Administradores/MinisteriosAdm";
 import LideresAdm from "./src/screens/Administradores/LideresAdm";
-import MinisterioComunicacaoAdmin from "./src/screens/Ministerios/MinisterioContent";
+import MinisterioComunicacaoAdmin from "./src/screens/Ministerios/MinisterioComunicacaoAdmin";
 
 
 const Stack = createNativeStackNavigator();
@@ -117,7 +117,9 @@ export default function App() {
           <Stack.Screen name="MembersAdm" component={MembersAdm} />
           <Stack.Screen name="MinisteriosAdm" component={MinisteriosAdm} />
           <Stack.Screen name="LideresAdm" component={LideresAdm} />
-          <Stack.Screen name="MinisterioComunicacaoAdmin" component={MinisterioComunicacaoAdmin} />
+          <Stack.Screen name="MinisterioComunicacaoAdmin" component={MinisterioComunicacaoAdmin} options={{
+              headerShown: false,
+            }}/>
         </Stack.Navigator>
       </NavigationContainer>
     </AuthProvider>
