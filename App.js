@@ -15,109 +15,111 @@ import NewLider from "./src/screens/Administradores/NewLider";
 import MembersAdm from "./src/screens/Administradores/MembersAdm";
 import MinisteriosAdm from "./src/screens/Administradores/MinisteriosAdm";
 import LideresAdm from "./src/screens/Administradores/LideresAdm";
+import MinisterioComunicacaoAdmin from "./src/screens/Ministerios/MinisterioContent";
+
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
     <AuthProvider>
-    <NavigationContainer>
-      <Stack.Navigator>
-        {/* Tabs como tela principal */}
-        <Stack.Screen
-          name="Início"
-          component={TabsNavigation}
-          options={{ headerShown: false }}
-        />
+      <NavigationContainer>
+        <Stack.Navigator>
+          {/* Tabs como tela principal */}
+          <Stack.Screen
+            name="Início"
+            component={TabsNavigation}
+            options={{ headerShown: false }}
+          />
 
-        {/* Tela de vídeo (alvo do CardVideo) */}
-        <Stack.Screen
-          name="ConteudoVideo"
-          component={ConteudoVideo}
-          options={({ route }) => ({
-            title: route?.params?.title || "Vídeo",
-            headerStyle: {
-              backgroundColor: "#fff",
-            },
-            headerTitleStyle: {
-              color: "#333",
-            },
-            headerTintColor: "#B8986A",
-          })}
-        />
+          {/* Tela de vídeo (alvo do CardVideo) */}
+          <Stack.Screen
+            name="ConteudoVideo"
+            component={ConteudoVideo}
+            options={({ route }) => ({
+              title: route?.params?.title || "Vídeo",
+              headerStyle: {
+                backgroundColor: "#fff",
+              },
+              headerTitleStyle: {
+                color: "#333",
+              },
+              headerTintColor: "#B8986A",
+            })}
+          />
 
-        {/* Tela de Login */}
-        <Stack.Screen
-          name="Login"
-          component={LoginScreen}
-          options={{
-            headerShown: false,
-            presentation: "modal",
-          }}
-        />
+          {/* Tela de Login */}
+          <Stack.Screen
+            name="Login"
+            component={LoginScreen}
+            options={{
+              headerShown: false,
+              presentation: "modal",
+            }}
+          />
 
-        {/* Tela de Cadastro */}
-        <Stack.Screen
-          name="Cadastro"
-          component={CadastroScreen}
-          options={{
-            headerShown: false,
-            presentation: "modal",
-          }}
-        />
+          {/* Tela de Cadastro */}
+          <Stack.Screen
+            name="Cadastro"
+            component={CadastroScreen}
+            options={{
+              headerShown: false,
+              presentation: "modal",
+            }}
+          />
 
-        {/* Tela de Ministérios */}
-        <Stack.Screen
-          name="Ministerios"
-          component={MinisteriosScreen}
-          options={{
-            headerShown: false,
-          }}
-        />
+          {/* Tela de Ministérios */}
+          <Stack.Screen
+            name="Ministerios"
+            component={MinisteriosScreen}
+            options={{
+              headerShown: false,
+            }}
+          />
 
-        {/* Tela de Perfil */}
-        <Stack.Screen
-          name="Profile"
-          component={ProfileScreen}
-          options={{
-            headerShown: false,
-          }}
-        />
+          {/* Tela de Perfil */}
+          <Stack.Screen
+            name="Profile"
+            component={ProfileScreen}
+            options={{
+              headerShown: false,
+            }}
+          />
 
-        {/* Tela AdminMaster */}
-        <Stack.Screen
-          name="AdminMaster"
-          component={AdminMaster}
-          options={{
-            headerShown: false,
-          }}
-        />
+          {/* Tela AdminMaster */}
+          <Stack.Screen
+            name="AdminMaster"
+            component={AdminMaster}
+            options={{
+              headerShown: false,
+            }}
+          />
 
-        {/* Telas Administrativas - Cadastros */}
-        <Stack.Screen
-          name="NewMinisterio"
-          component={NewMinisterio}
-          options={{
-            headerShown: false,
-          }}
-        />
+          {/* Telas Administrativas - Cadastros */}
+          <Stack.Screen
+            name="NewMinisterio"
+            component={NewMinisterio}
+            options={{
+              headerShown: false,
+            }}
+          />
 
-        <Stack.Screen
-          name="NewLider"
-          component={NewLider}
-          options={{
-            headerShown: false,
-          }}
-        />
+          <Stack.Screen
+            name="NewLider"
+            component={NewLider}
+            options={{
+              headerShown: false,
+            }}
+          />
 
-        {/* Páginas Administrativas - Gerenciamento */}
-        
+          {/* Páginas Administrativas - Gerenciamento */}
+
           <Stack.Screen name="MembersAdm" component={MembersAdm} />
-<Stack.Screen name="MinisteriosAdm" component={MinisteriosAdm} />
-<Stack.Screen name="LideresAdm" component={LideresAdm} />
-        
-      </Stack.Navigator>
-    </NavigationContainer>
+          <Stack.Screen name="MinisteriosAdm" component={MinisteriosAdm} />
+          <Stack.Screen name="LideresAdm" component={LideresAdm} />
+          <Stack.Screen name="MinisterioComunicacaoAdmin" component={MinisterioComunicacaoAdmin} />
+        </Stack.Navigator>
+      </NavigationContainer>
     </AuthProvider>
   );
 }

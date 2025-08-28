@@ -1,5 +1,4 @@
 // Login.js
-// Login.js
 import React, { useState, useContext } from "react";
 import {
   View,
@@ -64,21 +63,21 @@ export default function LoginScreen({ navigation }) {
             }
           ]);
         } else if (userData.userType === "admin") {
-          // Para futuros administradores
+          // Para administradores - volta para as tabs (onde está a Home)
           Alert.alert("Sucesso", "Login de Administrador realizado com sucesso!", [
-            { text: "OK", onPress: () => navigation.goBack() }
+            { text: "OK", onPress: () => navigation.navigate("Início") }
           ]);
         } else {
-          // Usuário normal (member)
+          // Usuário normal (member) - volta para as tabs
           Alert.alert("Sucesso", "Login realizado com sucesso!", [
-            { text: "OK", onPress: () => navigation.goBack() }
+            { text: "OK", onPress: () => navigation.navigate("Início") }
           ]);
         }
       } else {
         // Se não encontrar dados do usuário no Firestore, login normal como member
         setUserData({ userType: "member", name: user.displayName || user.email });
         Alert.alert("Sucesso", "Login realizado com sucesso!", [
-          { text: "OK", onPress: () => navigation.navigate("Home") }
+          { text: "OK", onPress: () => navigation.navigate("Início") }
         ]);
       }
     } catch (error) {

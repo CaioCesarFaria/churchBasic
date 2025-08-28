@@ -112,7 +112,17 @@ export default function NewLider({ navigation }) {
       `Senha temporária: ${password}\nO líder poderá alterá-la no primeiro login.`
     );
   };
-
+  
+  const cleanMinistryName = (name) => {
+  if (!name) return '';
+  // 1. Normaliza para decompor caracteres acentuados
+  name = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  // 2. Remove caracteres que não são letras ou números
+  name = name.replace(/[^a-zA-Z0-9]/g, '');
+  // 3. Capitaliza a primeira letra (opcional, mas comum para nomes de rotas)
+  name = name.charAt(0).toUpperCase() + name.slice(1);
+  return name;
+};
   const handleSalvar = async () => {
     if (!validateForm()) return;
     setLoading(true);
@@ -126,6 +136,9 @@ export default function NewLider({ navigation }) {
       const user = userCredential.user;
 
       await updateProfile(user, { displayName: nome });
+      // Gera o nome da rota da página administrativa
+    const ministerioCleaned = cleanMinistryName(ministerio);
+    const pageRouteName = `Ministerio${ministerioCleaned}Admin`; // Ex: MinisterioComunicacaoAdmin
 
       await setDoc(doc(db, "churchBasico", "users", "lideres", user.uid), {
         name: nome.trim(),
@@ -137,6 +150,7 @@ export default function NewLider({ navigation }) {
         uid: user.uid,
         isLeader: true,
         createdBy: "adminMaster",
+        page: pageRouteName, // <--- NOVO CAMPO: Nome da rota da página específica
       });
 
       Alert.alert("Sucesso", "Líder atribuído com sucesso!", [
