@@ -1,9 +1,18 @@
-import React from "react";
+import React, { useContext } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { AuthContext } from "../context/AuthContext";
 
 export default function MaisScreen({ navigation }) {
+  const { user, userData } = useContext(AuthContext);
+  
+  // Pega o nome do usuário seguindo o mesmo padrão da Home.js
+  const userName = userData?.name || user?.displayName || user?.email || "Visitante";
+  
+  // Progress mockado por enquanto - depois pode vir do userData também
+  const progress = userData?.progress || 26;
+
   const MenuItem = ({ iconName, title, onPress, showArrow = true }) => (
     <TouchableOpacity style={styles.menuItem} onPress={onPress}>
       <View style={styles.menuItemLeft}>
@@ -28,11 +37,11 @@ export default function MaisScreen({ navigation }) {
               <Ionicons name="person" size={30} color="#B8986A" />
             </View>
             <View style={styles.profileText}>
-              <Text style={styles.profileName}>Guilherme Godoy</Text>
+              <Text style={styles.profileName}>{userName}</Text>
               <View style={styles.progressContainer}>
-                <Text style={styles.progressText}>26% completo</Text>
+                <Text style={styles.progressText}>{progress}% completo</Text>
                 <View style={styles.progressBar}>
-                  <View style={[styles.progressFill, { width: "26%" }]} />
+                  <View style={[styles.progressFill, { width: `${progress}%` }]} />
                 </View>
               </View>
             </View>
@@ -40,7 +49,7 @@ export default function MaisScreen({ navigation }) {
           
           <TouchableOpacity 
             style={styles.profileButton}
-            onPress={() => navigation.navigate("Profile")}
+            onPress={() => navigation.navigate("UserProfile")}
           >
             <Ionicons name="person-outline" size={20} color="#B8986A" />
             <Text style={styles.profileButtonText}>Ver meu perfil</Text>
@@ -50,82 +59,81 @@ export default function MaisScreen({ navigation }) {
         {/* Menu Grid */}
         <View style={styles.menuGrid}>
           <View style={styles.menuRow}>
+            <TouchableOpacity 
+              style={styles.gridItem}
+              onPress={() => navigation.navigate("KidsMain")}
+            >
+              <View style={styles.gridIconContainer}>
+                <Ionicons name="happy-outline" size={30} color="#B8986A" />
+              </View>
+              <Text style={styles.gridItemText}>KIDS</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.gridItem}
+              onPress={() => navigation.navigate("RadioMain")}
+            >
+              <View style={styles.gridIconContainer}>
+                <Ionicons name="radio-outline" size={30} color="#B8986A" />
+              </View>
+              <Text style={styles.gridItemText}>RADIO</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.menuRow}>
+            <TouchableOpacity 
+              style={styles.gridItem}
+              onPress={() => navigation.navigate("AbbatvMain")}
+            >
+              <View style={styles.gridIconContainer}>
+                <Ionicons name="tv-outline" size={30} color="#B8986A" />
+              </View>
+              <Text style={styles.gridItemText}>ABBA TV</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.gridItem}
+              onPress={() => navigation.navigate("TestemunhoMain")}
+            >
+              <View style={styles.gridIconContainer}>
+                <Ionicons name="heart-outline" size={30} color="#B8986A" />
+              </View>
+              <Text style={styles.gridItemText}>TESTEMUNHO</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.menuRow}>
+            <TouchableOpacity 
+              style={styles.gridItem}
+              onPress={() => navigation.navigate("BibliaMain")}
+            >
+              <View style={styles.gridIconContainer}>
+                <Ionicons name="book-outline" size={30} color="#B8986A" />
+              </View>
+              <Text style={styles.gridItemText}>BÍBLIA</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.gridItem}>
               <View style={styles.gridIconContainer}>
                 <Ionicons name="people-outline" size={30} color="#B8986A" />
               </View>
-              <Text style={styles.gridItemText}>Encontre uma MESA</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.gridItem}>
-              <View style={styles.gridIconContainer}>
-                <Ionicons name="book-outline" size={30} color="#B8986A" />
-              </View>
-              <Text style={styles.gridItemText}>Bíblia</Text>
+              <Text style={styles.gridItemText}>MINISTÉRIOS</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.menuRow}>
-            <TouchableOpacity style={styles.gridItem}>
-              <View style={styles.gridIconContainer}>
-                <Ionicons name="library-outline" size={30} color="#B8986A" />
-              </View>
-              <Text style={styles.gridItemText}>Planos de Leitura</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.gridItem}>
-              <View style={styles.gridIconContainer}>
-                <Ionicons name="videocam-outline" size={30} color="#B8986A" />
-              </View>
-              <Text style={styles.gridItemText}>ABBA TV</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.menuRow}>
-            <TouchableOpacity style={styles.gridItem}>
-              <View style={styles.gridIconContainer}>
-                <Ionicons name="church-outline" size={30} color="#B8986A" />
-              </View>
-              <Text style={styles.gridItemText}>ABBA CHURCH</Text>
-            </TouchableOpacity>
-
             <TouchableOpacity style={styles.gridItem}>
               <View style={styles.gridIconContainer}>
                 <Ionicons name="calendar-outline" size={30} color="#B8986A" />
               </View>
-              <Text style={styles.gridItemText}>Agenda</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.menuRow}>
-            <TouchableOpacity style={styles.gridItem}>
-              <View style={styles.gridIconContainer}>
-                <Ionicons name="hand-left-outline" size={30} color="#B8986A" />
-              </View>
-              <Text style={styles.gridItemText}>Testemunho</Text>
+              <Text style={styles.gridItemText}>AGENDA</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.gridItem}>
-              <View style={styles.gridIconContainer}>
-                <Ionicons name="download-outline" size={30} color="#B8986A" />
-              </View>
-              <Text style={styles.gridItemText}>Downloads</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.menuRow}>
             <TouchableOpacity style={styles.gridItem}>
               <View style={styles.gridIconContainer}>
                 <Ionicons name="share-outline" size={30} color="#B8986A" />
               </View>
-              <Text style={styles.gridItemText}>Compartilhar</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.gridItem}>
-              <View style={styles.gridIconContainer}>
-                <Ionicons name="folder-outline" size={30} color="#B8986A" />
-              </View>
-              <Text style={styles.gridItemText}>Recursos</Text>
+              <Text style={styles.gridItemText}>COMPARTILHAR</Text>
             </TouchableOpacity>
           </View>
         </View>

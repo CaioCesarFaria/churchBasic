@@ -14,16 +14,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { auth, db } from "../Firebase/FirebaseConfig";
-import { doc, getDoc } from "firebase/firestore";
-import { AuthContext } from "../context/AuthContext";
+import { auth } from "../Firebase/FirebaseConfig";
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { setUserData } = useContext(AuthContext);
 
   const handleLogin = async () => {
     if (!email || !senha) {
@@ -34,52 +31,20 @@ export default function LoginScreen({ navigation }) {
     setLoading(true);
     
     try {
+      // Só precisa fazer login no Firebase Auth
+      // O AuthContext vai automaticamente detectar a mudança e buscar os dados do usuário
       const userCredential = await signInWithEmailAndPassword(auth, email, senha);
       const user = userCredential.user;
       
-      // Buscar dados do usuário no Firestore - primeiro tenta na coleção churchBasico/users/members
-      let userDoc = await getDoc(doc(db, "churchBasico", "users", "members", user.uid));
-      let userData = null;
+      console.log("Login realizado com sucesso para:", user.uid);
       
-      if (userDoc.exists()) {
-        userData = userDoc.data();
-      } else {
-        // Se não encontrar em members, tenta na coleção users direta (para adminMaster)
-        userDoc = await getDoc(doc(db, "users", user.uid));
-        if (userDoc.exists()) {
-          userData = userDoc.data();
-        }
-      }
-      
-      if (userData) {
-        setUserData(userData);
-        
-        // Verificar tipo de usuário e redirecionar
-        if (userData.userType === "adminMaster") {
-          Alert.alert("Sucesso", "Login de Admin Master realizado com sucesso!", [
-            { 
-              text: "OK", 
-              onPress: () => navigation.navigate("AdminMaster")
-            }
-          ]);
-        } else if (userData.userType === "admin") {
-          // Para administradores - volta para as tabs (onde está a Home)
-          Alert.alert("Sucesso", "Login de Administrador realizado com sucesso!", [
-            { text: "OK", onPress: () => navigation.navigate("Início") }
-          ]);
-        } else {
-          // Usuário normal (member) - volta para as tabs
-          Alert.alert("Sucesso", "Login realizado com sucesso!", [
-            { text: "OK", onPress: () => navigation.navigate("Início") }
-          ]);
-        }
-      } else {
-        // Se não encontrar dados do usuário no Firestore, login normal como member
-        setUserData({ userType: "member", name: user.displayName || user.email });
+      // Aguarda um pouco para o AuthContext processar os dados
+      setTimeout(() => {
         Alert.alert("Sucesso", "Login realizado com sucesso!", [
           { text: "OK", onPress: () => navigation.navigate("Início") }
         ]);
-      }
+      }, 500);
+
     } catch (error) {
       console.log("Erro no login:", error);
       let errorMessage = "Erro ao fazer login";

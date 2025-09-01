@@ -1,9 +1,10 @@
 // App.js
-import React from "react";
+import React, { useContext } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import TabsNavigation from "./src/routes/TabsNavigation";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { AuthProvider } from "./src/context/AuthContext";
+import { AuthProvider, AuthContext } from "./src/context/AuthContext";
+import { View, ActivityIndicator, Text, StyleSheet } from "react-native";
 import ConteudoVideo from "./src/screens/ConteudoVideo";
 import LoginScreen from "./src/screens/Login";
 import CadastroScreen from "./src/screens/Cadastro";
@@ -17,113 +18,169 @@ import MinisteriosAdm from "./src/screens/Administradores/MinisteriosAdm";
 import LideresAdm from "./src/screens/Administradores/LideresAdm";
 import MinisterioComunicacaoAdmin from "./src/screens/Ministerios/MinisterioComunicacaoAdmin";
 import MinisterioLouvorAdmin from "./src/screens/Ministerios/MinisterioLouvorAdmin";
-
+import KidsMain from "./src/screens/KidsMain";
+import MinisterioKidsAdmin from "./src/screens/Ministerios/MinisterioKidsAdmin";
 
 const Stack = createNativeStackNavigator();
+
+// Componente de Loading
+const LoadingScreen = () => (
+  <View style={styles.loadingContainer}>
+    <ActivityIndicator size="large" color="#B8986A" />
+    <Text style={styles.loadingText}>Carregando...</Text>
+  </View>
+);
+
+// Componente principal de navegação
+const AppNavigator = () => {
+  const { loading } = useContext(AuthContext);
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  return (
+    <NavigationContainer>
+      <Stack.Navigator>
+        {/* Tabs como tela principal */}
+        <Stack.Screen
+          name="Início"
+          component={TabsNavigation}
+          options={{ headerShown: false }}
+        />
+
+        {/* Tela de vídeo (alvo do CardVideo) */}
+        <Stack.Screen
+          name="ConteudoVideo"
+          component={ConteudoVideo}
+          options={({ route }) => ({
+            title: route?.params?.title || "Vídeo",
+            headerStyle: {
+              backgroundColor: "#fff",
+            },
+            headerTitleStyle: {
+              color: "#333",
+            },
+            headerTintColor: "#B8986A",
+          })}
+        />
+
+        {/* Tela de Login */}
+        <Stack.Screen
+          name="Login"
+          component={LoginScreen}
+          options={{
+            headerShown: false,
+            presentation: "modal",
+          }}
+        />
+
+        {/* Tela de Cadastro */}
+        <Stack.Screen
+          name="Cadastro"
+          component={CadastroScreen}
+          options={{
+            headerShown: false,
+            presentation: "modal",
+          }}
+        />
+
+        {/* Tela de Ministérios */}
+        <Stack.Screen
+          name="Ministerios"
+          component={MinisteriosScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+
+        {/* Tela de Perfil */}
+        <Stack.Screen
+          name="Profile"
+          component={ProfileScreen}
+          options={{
+            headerShown: false,
+          }}
+        />
+
+        {/* Tela AdminMaster */}
+        <Stack.Screen
+          name="AdminMaster"
+          component={AdminMaster}
+          options={{
+            headerShown: false,
+          }}
+        />
+
+        {/* Telas Administrativas - Cadastros */}
+        <Stack.Screen
+          name="NewMinisterio"
+          component={NewMinisterio}
+          options={{
+            headerShown: false,
+          }}
+        />
+
+        <Stack.Screen
+          name="NewLider"
+          component={NewLider}
+          options={{
+            headerShown: false,
+          }}
+        />
+
+        {/* Páginas Administrativas - Gerenciamento */}
+        <Stack.Screen name="MembersAdm" component={MembersAdm} />
+        <Stack.Screen name="MinisteriosAdm" component={MinisteriosAdm} />
+        <Stack.Screen name="LideresAdm" component={LideresAdm} />
+        <Stack.Screen
+          name="MinisterioComunicacaoAdmin"
+          component={MinisterioComunicacaoAdmin}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="MinisterioLouvorAdmin"
+          component={MinisterioLouvorAdmin}
+        />
+        <Stack.Screen
+          name="MinisterioKidsAdmin"
+          component={MinisterioKidsAdmin}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="KidsMain"
+          component={KidsMain}
+          options={{
+            headerShown: false,
+          }}
+        />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+};
 
 export default function App() {
   return (
     <AuthProvider>
-      <NavigationContainer>
-        <Stack.Navigator>
-          {/* Tabs como tela principal */}
-          <Stack.Screen
-            name="Início"
-            component={TabsNavigation}
-            options={{ headerShown: false }}
-          />
-
-          {/* Tela de vídeo (alvo do CardVideo) */}
-          <Stack.Screen
-            name="ConteudoVideo"
-            component={ConteudoVideo}
-            options={({ route }) => ({
-              title: route?.params?.title || "Vídeo",
-              headerStyle: {
-                backgroundColor: "#fff",
-              },
-              headerTitleStyle: {
-                color: "#333",
-              },
-              headerTintColor: "#B8986A",
-            })}
-          />
-
-          {/* Tela de Login */}
-          <Stack.Screen
-            name="Login"
-            component={LoginScreen}
-            options={{
-              headerShown: false,
-              presentation: "modal",
-            }}
-          />
-
-          {/* Tela de Cadastro */}
-          <Stack.Screen
-            name="Cadastro"
-            component={CadastroScreen}
-            options={{
-              headerShown: false,
-              presentation: "modal",
-            }}
-          />
-
-          {/* Tela de Ministérios */}
-          <Stack.Screen
-            name="Ministerios"
-            component={MinisteriosScreen}
-            options={{
-              headerShown: false,
-            }}
-          />
-
-          {/* Tela de Perfil */}
-          <Stack.Screen
-            name="Profile"
-            component={ProfileScreen}
-            options={{
-              headerShown: false,
-            }}
-          />
-
-          {/* Tela AdminMaster */}
-          <Stack.Screen
-            name="AdminMaster"
-            component={AdminMaster}
-            options={{
-              headerShown: false,
-            }}
-          />
-
-          {/* Telas Administrativas - Cadastros */}
-          <Stack.Screen
-            name="NewMinisterio"
-            component={NewMinisterio}
-            options={{
-              headerShown: false,
-            }}
-          />
-
-          <Stack.Screen
-            name="NewLider"
-            component={NewLider}
-            options={{
-              headerShown: false,
-            }}
-          />
-
-          {/* Páginas Administrativas - Gerenciamento */}
-
-          <Stack.Screen name="MembersAdm" component={MembersAdm} />
-          <Stack.Screen name="MinisteriosAdm" component={MinisteriosAdm} />
-          <Stack.Screen name="LideresAdm" component={LideresAdm} />
-          <Stack.Screen name="MinisterioComunicacaoAdmin" component={MinisterioComunicacaoAdmin} options={{
-              headerShown: false,
-            }}/>
-            <Stack.Screen name="MinisterioLouvorAdmin" component={MinisterioLouvorAdmin} />
-        </Stack.Navigator>
-      </NavigationContainer>
+      <AppNavigator />
     </AuthProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f5f5f5",
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: "#666",
+  },
+});
