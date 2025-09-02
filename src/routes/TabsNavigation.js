@@ -1,6 +1,7 @@
 // TabsNavigation.js
 import React, { useContext, useState } from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { Platform, Modal, View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useNavigation } from "@react-navigation/native";
@@ -12,9 +13,15 @@ import HomeScreen from "../screens/Home";
 import GenerosidadeScreen from "../screens/Generosidade";
 import MaisScreen from "../screens/Mais";
 import AdminMaster from "../screens/Administradores/AdminMaster";
+import KidsMain from "../screens/KidsMain";
+import RadioMain from "../screens/RadioMain";
 import { AuthContext } from "../context/AuthContext";
+import BibliaMain from "../screens/BibliaMain";
+import MinisteriosMain from "../screens/MinisteriosMain";
+import CelulaMain from "../screens/CelulaMain";
 
 const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
 
 // Componente de tela bloqueada
 function LockedScreen({ screenName, onLoginPress }) {
@@ -35,31 +42,68 @@ function LockedScreen({ screenName, onLoginPress }) {
   );
 }
 
-export default function TabsNavigation() {
-  const { user, userData } = useContext(AuthContext);
+// Stack Navigator para a tela "Mais" que inclui Kids e Radio
+function MaisStackNavigator() {
+  return (
+    // LOCAR PARA ADICIONAR TELAS QUE PRECISAR TEM O BOTTOMTABS
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="MaisScreen" component={MaisScreen} />
+      <Stack.Screen name="KidsMain" component={KidsMain} />
+      <Stack.Screen name="RadioMain" component={RadioMain} />
+      <Stack.Screen name="BibliaMain" component={BibliaMain} />
+      <Stack.Screen name="MinisteriosMain" component={MinisteriosMain} />
+      <Stack.Screen name="CelulaMain" component={CelulaMain} />
+    </Stack.Navigator>
+  );
+}
+
+// Stack Navigator para Conteúdos (caso precise adicionar subpáginas no futuro)
+function ConteudosStackNavigator() {
+  const { user } = useContext(AuthContext);
   const navigation = useNavigation();
-  const [modalVisible, setModalVisible] = useState(false);
 
   const handleLoginPress = () => {
     navigation.navigate("Login");
   };
 
-  const handleGoToLogin = () => {
-    setModalVisible(false);
-    navigation.navigate("Login");
-  };
-
-  // Componentes das telas protegidas
   const ConteudosProtected = () => {
     return user ? <ConteudosScreen /> : <LockedScreen screenName="Conteúdos" onLoginPress={handleLoginPress} />;
   };
 
-  // Verificar se é adminMaster para mostrar a tela AdminMaster no lugar da Home
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="ConteudosScreen" component={ConteudosProtected} />
+    </Stack.Navigator>
+  );
+}
+
+// Stack Navigator para Home (caso precise adicionar subpáginas no futuro)
+function HomeStackNavigator() {
+  const { userData } = useContext(AuthContext);
+  const navigation = useNavigation();
+
   const HomeComponent = () => {
     if (userData?.userType === "adminMaster") {
       return <AdminMaster navigation={navigation} />;
     }
     return <HomeScreen />;
+  };
+
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="HomeScreen" component={HomeComponent} />
+    </Stack.Navigator>
+  );
+}
+
+export default function TabsNavigation() {
+  const { user, userData } = useContext(AuthContext);
+  const navigation = useNavigation();
+  const [modalVisible, setModalVisible] = useState(false);
+
+  const handleGoToLogin = () => {
+    setModalVisible(false);
+    navigation.navigate("Login");
   };
 
   return (
@@ -78,19 +122,19 @@ export default function TabsNavigation() {
             let iconName;
 
             switch (route.name) {
-              case "Conteúdos":
+              case "ConteúdosTab":
                 iconName = "book-outline";
                 break;
-              case "Programação":
+              case "ProgramaçãoTab":
                 iconName = "calendar-outline";
                 break;
-              case "Home":
+              case "HomeTab":
                 iconName = "home-outline";
                 break;
-              case "Generosidade":
+              case "GenerosidadeTab":
                 iconName = "heart-outline";
                 break;
-              case "Mais":
+              case "MaisTab":
                 iconName = "menu-outline";
                 break;
             }
@@ -98,13 +142,43 @@ export default function TabsNavigation() {
             return <Ionicons name={iconName} size={size} color={color} />;
           },
         })}
-        initialRouteName="Home"
+        initialRouteName="HomeTab"
       >
-        <Tab.Screen name="Home" component={HomeComponent} />
-        <Tab.Screen name="Conteúdos" component={ConteudosProtected} />
-        <Tab.Screen name="Programação" component={ProgramacaoScreen} />
-        <Tab.Screen name="Generosidade" component={GenerosidadeScreen} />
-        <Tab.Screen name="Mais" component={MaisScreen} />
+        <Tab.Screen 
+          name="HomeTab" 
+          component={HomeStackNavigator}
+          options={{
+            tabBarLabel: "Home"
+          }}
+        />
+        <Tab.Screen 
+          name="ConteúdosTab" 
+          component={ConteudosStackNavigator}
+          options={{
+            tabBarLabel: "Conteúdos"
+          }}
+        />
+        <Tab.Screen 
+          name="ProgramaçãoTab" 
+          component={ProgramacaoScreen}
+          options={{
+            tabBarLabel: "Programação"
+          }}
+        />
+        <Tab.Screen 
+          name="GenerosidadeTab" 
+          component={GenerosidadeScreen}
+          options={{
+            tabBarLabel: "Generosidade"
+          }}
+        />
+        <Tab.Screen 
+          name="MaisTab" 
+          component={MaisStackNavigator}
+          options={{
+            tabBarLabel: "Mais"
+          }}
+        />
       </Tab.Navigator>
 
       {/* Modal de Login */}

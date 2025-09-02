@@ -113,7 +113,9 @@ export default function MaisScreen({ navigation }) {
               <Text style={styles.gridItemText}>BÍBLIA</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.gridItem}>
+            <TouchableOpacity style={styles.gridItem}
+            onPress={() => navigation.navigate("MinisteriosMain")}
+            >
               <View style={styles.gridIconContainer}>
                 <Ionicons name="people-outline" size={30} color="#B8986A" />
               </View>

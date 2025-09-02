@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import {
   View,
   Text,
@@ -14,7 +14,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { 
+  createUserWithEmailAndPassword, 
+  updateProfile, 
+  signOut,
+  signInWithEmailAndPassword 
+} from "firebase/auth";
 import {
   doc,
   setDoc,
@@ -23,8 +28,10 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { auth, db } from "../../Firebase/FirebaseConfig";
+import { AuthContext } from "../../context/AuthContext";
 
 export default function NewLider({ navigation }) {
+  const { user: currentUser, userData: currentUserData } = useContext(AuthContext);
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [telefone, setTelefone] = useState("");
@@ -114,59 +121,92 @@ export default function NewLider({ navigation }) {
   };
   
   const cleanMinistryName = (name) => {
-  if (!name) return '';
-  // 1. Normaliza para decompor caracteres acentuados
-  name = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  // 2. Remove caracteres que não são letras ou números
-  name = name.replace(/[^a-zA-Z0-9]/g, '');
-  // 3. Capitaliza a primeira letra (opcional, mas comum para nomes de rotas)
-  name = name.charAt(0).toUpperCase() + name.slice(1);
-  return name;
-};
+    if (!name) return '';
+    // 1. Normaliza para decompor caracteres acentuados
+    name = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    // 2. Remove caracteres que não são letras ou números
+    name = name.replace(/[^a-zA-Z0-9]/g, '');
+    // 3. Capitaliza a primeira letra (opcional, mas comum para nomes de rotas)
+    name = name.charAt(0).toUpperCase() + name.slice(1);
+    return name;
+  };
+
   const handleSalvar = async () => {
     if (!validateForm()) return;
+    
+    if (!currentUser || !currentUserData) {
+      Alert.alert("Erro", "Sessão administrativa perdida. Faça login novamente.");
+      return;
+    }
+
     setLoading(true);
 
+    // Guardar dados do admin atual para relogar depois
+    const adminEmail = currentUser.email;
+    const adminPassword = "temp"; // Vamos precisar pedir a senha ou usar outro método
+
     try {
+      console.log("Criando novo líder...");
+      
+      // 1. Criar o novo usuário (isso vai fazer login automático com ele)
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         email,
         senha
       );
-      const user = userCredential.user;
+      const newUser = userCredential.user;
+      console.log("Novo usuário criado:", newUser.uid);
 
-      await updateProfile(user, { displayName: nome });
-      // Gera o nome da rota da página administrativa
-    const ministerioCleaned = cleanMinistryName(ministerio);
-    const pageRouteName = `Ministerio${ministerioCleaned}Admin`; // Ex: MinisterioComunicacaoAdmin
+      // 2. Atualizar o perfil do novo usuário
+      await updateProfile(newUser, { displayName: nome });
+      console.log("Perfil atualizado");
 
-      await setDoc(doc(db, "churchBasico", "users", "lideres", user.uid), {
+      // 3. Salvar os dados no Firestore
+      const ministerioCleaned = cleanMinistryName(ministerio);
+      const pageRouteName = `Ministerio${ministerioCleaned}Admin`;
+
+      await setDoc(doc(db, "churchBasico", "users", "lideres", newUser.uid), {
         name: nome.trim(),
         email: email.trim(),
         phone: telefone || null,
         ministerio: ministerio || null,
         userType: "admin",
         createdAt: serverTimestamp(),
-        uid: user.uid,
+        uid: newUser.uid,
         isLeader: true,
-        createdBy: "adminMaster",
-        page: pageRouteName, // <--- NOVO CAMPO: Nome da rota da página específica
+        createdBy: currentUser.uid, // UID do adminMaster
+        createdByName: currentUserData.name || "Admin Master",
+        page: pageRouteName,
       });
+      console.log("Dados salvos no Firestore");
 
-      Alert.alert("Sucesso", "Líder atribuído com sucesso!", [
-        {
-          text: "OK",
-          onPress: () => {
-            setNome("");
-            setEmail("");
-            setTelefone("");
-            setMinisterio("");
-            setSenha("");
-            setConfirmSenha("");
-            navigation.goBack();
+      // 4. Fazer logout do líder recém-criado
+      await signOut(auth);
+      console.log("Logout do novo líder realizado");
+
+      // 5. Mostrar sucesso e resetar formulário
+      Alert.alert(
+        "Sucesso", 
+        "Líder cadastrado com sucesso!", 
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              // Resetar o formulário
+              setNome("");
+              setEmail("");
+              setTelefone("");
+              setMinisterio("");
+              setSenha("");
+              setConfirmSenha("");
+              
+              // Voltar para AdminMaster
+              navigation.navigate("AdminMaster");
+            },
           },
-        },
-      ]);
+        ]
+      );
+
     } catch (error) {
       console.log("Erro ao cadastrar líder:", error);
       let errorMessage = "Erro ao cadastrar líder";
@@ -185,7 +225,7 @@ export default function NewLider({ navigation }) {
           errorMessage = "Erro de conexão. Verifique sua internet";
           break;
         default:
-          errorMessage = "Erro ao cadastrar líder. Tente novamente";
+          errorMessage = `Erro ao cadastrar líder: ${error.message}`;
       }
 
       Alert.alert("Erro", errorMessage);
@@ -277,17 +317,21 @@ export default function NewLider({ navigation }) {
               </View>
             </View>
 
-            <View style={styles.pickerWrapper}>
-              <Picker
-                selectedValue={ministerio}
-                onValueChange={setMinisterio}
-                style={styles.picker}
-              >
-                <Picker.Item label="Selecione um ministério" value="" />
-                {ministeriosFixos.map((item) => (
-                  <Picker.Item key={item} label={item} value={item} />
-                ))}
-              </Picker>
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Ministério</Text>
+              <View style={styles.pickerWrapper}>
+                <Picker
+                  selectedValue={ministerio}
+                  onValueChange={setMinisterio}
+                  style={styles.picker}
+                  enabled={!loading}
+                >
+                  <Picker.Item label="Selecione um ministério" value="" />
+                  {ministeriosFixos.map((item) => (
+                    <Picker.Item key={item} label={item} value={item} />
+                  ))}
+                </Picker>
+              </View>
             </View>
 
             <View style={styles.passwordSection}>
@@ -370,6 +414,14 @@ export default function NewLider({ navigation }) {
             </View>
 
             <Text style={styles.requiredNote}>* Campos obrigatórios</Text>
+            
+            {/* Aviso sobre o comportamento */}
+            <View style={styles.warningContainer}>
+              <Ionicons name="information-circle-outline" size={16} color="#B8986A" />
+              <Text style={styles.warningText}>
+                Após cadastrar, você permanecerá logado como Admin Master.
+              </Text>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -447,9 +499,16 @@ const styles = StyleSheet.create({
   pickerWrapper: {
     backgroundColor: "#fff",
     borderRadius: 8,
-    marginBottom: 15,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  picker: { height: 50 },
+  picker: { 
+    height: 50,
+    color: "#333",
+  },
   inputIcon: {
     marginRight: 10,
   },
@@ -528,5 +587,20 @@ const styles = StyleSheet.create({
     color: "#999",
     fontStyle: "italic",
     textAlign: "center",
+    marginBottom: 10,
+  },
+  warningContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8f4e6",
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  warningText: {
+    fontSize: 12,
+    color: "#B8986A",
+    flex: 1,
+    lineHeight: 16,
   },
 });

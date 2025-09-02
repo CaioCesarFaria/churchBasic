@@ -4,11 +4,12 @@ import { NavigationContainer } from "@react-navigation/native";
 import TabsNavigation from "./src/routes/TabsNavigation";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { AuthProvider, AuthContext } from "./src/context/AuthContext";
+import { RadioProvider } from "./src/context/RadioContext";
 import { View, ActivityIndicator, Text, StyleSheet } from "react-native";
 import ConteudoVideo from "./src/screens/ConteudoVideo";
 import LoginScreen from "./src/screens/Login";
 import CadastroScreen from "./src/screens/Cadastro";
-import MinisteriosScreen from "./src/screens/Ministerios";
+import MinisteriosScreen from "./src/screens/MinisteriosMain";
 import ProfileScreen from "./src/screens/Profile";
 import AdminMaster from "./src/screens/Administradores/AdminMaster";
 import NewMinisterio from "./src/screens/Administradores/NewMinisterio";
@@ -20,6 +21,11 @@ import MinisterioComunicacaoAdmin from "./src/screens/Ministerios/MinisterioComu
 import MinisterioLouvorAdmin from "./src/screens/Ministerios/MinisterioLouvorAdmin";
 import KidsMain from "./src/screens/KidsMain";
 import MinisterioKidsAdmin from "./src/screens/Ministerios/MinisterioKidsAdmin";
+import RadioMain from "./src/screens/RadioMain";
+import BibliaMain from "./src/screens/BibliaMain";
+import MinisteriosMain from "./src/screens/MinisteriosMain";
+import CelulaMain from "./src/screens/CelulaMain";
+import MinisterioCelulaAdmin from "./src/screens/Ministerios/MinisterioCelulaAdmin";
 
 const Stack = createNativeStackNavigator();
 
@@ -87,8 +93,15 @@ const AppNavigator = () => {
 
         {/* Tela de Ministérios */}
         <Stack.Screen
-          name="Ministerios"
-          component={MinisteriosScreen}
+          name="MinisteriosMain"
+          component={MinisteriosMain}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="CelulaMain"
+          component={CelulaMain}
           options={{
             headerShown: false,
           }}
@@ -158,6 +171,30 @@ const AppNavigator = () => {
             headerShown: false,
           }}
         />
+
+        {/* Tela da Rádio */}
+        <Stack.Screen
+          name="RadioMain"
+          component={RadioMain}
+          options={{
+            headerShown: false,
+          }}
+        />
+        {/* Tela da Rádio */}
+        <Stack.Screen
+          name="BibliaMain"
+          component={BibliaMain}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="MinisterioCelulaAdmin"
+          component={MinisterioCelulaAdmin}
+          options={{
+            headerShown: false,
+          }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -166,7 +203,9 @@ const AppNavigator = () => {
 export default function App() {
   return (
     <AuthProvider>
-      <AppNavigator />
+      <RadioProvider>
+        <AppNavigator />
+      </RadioProvider>
     </AuthProvider>
   );
 }
