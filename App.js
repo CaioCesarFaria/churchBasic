@@ -26,6 +26,7 @@ import BibliaMain from "./src/screens/BibliaMain";
 import MinisteriosMain from "./src/screens/MinisteriosMain";
 import CelulaMain from "./src/screens/CelulaMain";
 import MinisterioCelulaAdmin from "./src/screens/Ministerios/MinisterioCelulaAdmin";
+import AbbaTvMain from "./src/screens/AbbaTvMain";
 
 const Stack = createNativeStackNavigator();
 
@@ -194,6 +195,11 @@ const AppNavigator = () => {
           options={{
             headerShown: false,
           }}
+        />
+        <Stack.Screen
+          name="AbbaTvMain"
+          component={AbbaTvMain}
+          
         />
       </Stack.Navigator>
     </NavigationContainer>

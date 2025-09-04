@@ -28,7 +28,8 @@
     "react-native-youtube-iframe": "^2.4.1",
     "@react-native-picker/picker": "2.11.1",
     "expo-audio": "~0.4.9",
-    "@react-native-community/slider": "4.5.6"
+    "@react-native-community/slider": "4.5.6",
+    "expo-linear-gradient": "~14.1.5"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"

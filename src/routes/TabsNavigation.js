@@ -19,6 +19,7 @@ import { AuthContext } from "../context/AuthContext";
 import BibliaMain from "../screens/BibliaMain";
 import MinisteriosMain from "../screens/MinisteriosMain";
 import CelulaMain from "../screens/CelulaMain";
+import AbbaTvMain from "../screens/AbbaTvMain";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -53,6 +54,7 @@ function MaisStackNavigator() {
       <Stack.Screen name="BibliaMain" component={BibliaMain} />
       <Stack.Screen name="MinisteriosMain" component={MinisteriosMain} />
       <Stack.Screen name="CelulaMain" component={CelulaMain} />
+      <Stack.Screen name="AbbaTvMain" component={AbbaTvMain} />
     </Stack.Navigator>
   );
 }
@@ -115,8 +117,9 @@ export default function TabsNavigation() {
           tabBarInactiveTintColor: "#777",
           tabBarStyle: {
             backgroundColor: "#fff",
-            height: Platform.OS === "ios" ? 80 : 90,
-            paddingBottom: Platform.OS === "ios" ? 40 : 30,
+            height: Platform.OS === "ios" ? 80 : 120,
+            paddingBottom: Platform.OS === "ios" ? 40 : 50,
+            paddingTop: Platform.OS === 'ios' ? 10 : 10,
           },
           tabBarIcon: ({ color, size }) => {
             let iconName;

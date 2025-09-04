@@ -83,7 +83,7 @@ export default function MaisScreen({ navigation }) {
           <View style={styles.menuRow}>
             <TouchableOpacity 
               style={styles.gridItem}
-              onPress={() => navigation.navigate("AbbatvMain")}
+              onPress={() => navigation.navigate("AbbaTvMain")}
             >
               <View style={styles.gridIconContainer}>
                 <Ionicons name="tv-outline" size={30} color="#B8986A" />
