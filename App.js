@@ -27,6 +27,8 @@ import MinisteriosMain from "./src/screens/MinisteriosMain";
 import CelulaMain from "./src/screens/CelulaMain";
 import MinisterioCelulaAdmin from "./src/screens/Ministerios/MinisterioCelulaAdmin";
 import AbbaTvMain from "./src/screens/AbbaTvMain";
+import NewEvent from "./src/screens/Administradores/NewEvent";
+import PoliticasPrivacidade from "./src/screens/PoliticasPrivacidade";
 
 const Stack = createNativeStackNavigator();
 
@@ -145,7 +147,9 @@ const AppNavigator = () => {
 
         {/* Páginas Administrativas - Gerenciamento */}
         <Stack.Screen name="MembersAdm" component={MembersAdm} />
-        <Stack.Screen name="MinisteriosAdm" component={MinisteriosAdm} />
+        <Stack.Screen name="MinisteriosAdm" component={MinisteriosAdm} options={{
+            headerShown: false,
+          }} />
         <Stack.Screen name="LideresAdm" component={LideresAdm} />
         <Stack.Screen
           name="MinisterioComunicacaoAdmin"
@@ -199,6 +203,16 @@ const AppNavigator = () => {
         <Stack.Screen
           name="AbbaTvMain"
           component={AbbaTvMain}
+          
+        />
+        <Stack.Screen
+          name="NewEvent"
+          component={NewEvent}
+          
+        />
+        <Stack.Screen
+          name="PoliticasPrivacidade"
+          component={PoliticasPrivacidade}
           
         />
       </Stack.Navigator>

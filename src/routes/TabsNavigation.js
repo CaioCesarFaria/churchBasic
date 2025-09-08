@@ -55,6 +55,8 @@ function MaisStackNavigator() {
       <Stack.Screen name="MinisteriosMain" component={MinisteriosMain} />
       <Stack.Screen name="CelulaMain" component={CelulaMain} />
       <Stack.Screen name="AbbaTvMain" component={AbbaTvMain} />
+      {/* Adicionar AdminMaster aqui para poder navegar do botão da Home */}
+      <Stack.Screen name="AdminMaster" component={AdminMaster} />
     </Stack.Navigator>
   );
 }
@@ -79,21 +81,14 @@ function ConteudosStackNavigator() {
   );
 }
 
-// Stack Navigator para Home (caso precise adicionar subpáginas no futuro)
+// Stack Navigator para Home - AGORA TODOS VÃO PARA A HOME PRIMEIRO
 function HomeStackNavigator() {
-  const { userData } = useContext(AuthContext);
-  const navigation = useNavigation();
-
-  const HomeComponent = () => {
-    if (userData?.userType === "adminMaster") {
-      return <AdminMaster navigation={navigation} />;
-    }
-    return <HomeScreen />;
-  };
-
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="HomeScreen" component={HomeComponent} />
+      {/* TODOS os usuários (incluindo adminMaster) vão para HomeScreen primeiro */}
+      <Stack.Screen name="HomeScreen" component={HomeScreen} />
+      {/* AdminMaster pode navegar para sua tela específica através do botão na Home */}
+      <Stack.Screen name="AdminMaster" component={AdminMaster} />
     </Stack.Navigator>
   );
 }

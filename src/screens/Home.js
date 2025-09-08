@@ -199,6 +199,10 @@ export default function HomeScreen() {
     }
   };
 
+  const handlePainelAdministrativo = () => {
+    navigation.navigate("AdminMaster");
+  };
+
   const SectionHeader = ({ title, section, onToggle }) => (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -226,18 +230,31 @@ export default function HomeScreen() {
           onLoginPress={handleLoginPress}
         />
 
-        {/* Botão de gerenciamento para admin */}
+        {/* Botões de gerenciamento baseados no papel do usuário */}
         {isLoadingRole ? (
           <Text style={{ textAlign: 'center', marginTop: 20 }}>Carregando permissões...</Text>
         ) : (
-          userRole === "admin" && adminPageRoute && (
-            <View style={styles.adminSection}>
-              <TouchableOpacity style={styles.adminButton} onPress={handleGerenciarMinisterios}>
-                <Ionicons name="settings-outline" size={20} color="#fff" style={styles.adminIcon} />
-                <Text style={styles.adminButtonText}>GERENCIAR MINISTÉRIO</Text>
-              </TouchableOpacity>
-            </View>
-          )
+          <>
+            {/* Botão para AdminMaster */}
+            {userRole === "adminMaster" && (
+              <View style={styles.adminSection}>
+                <TouchableOpacity style={styles.adminMasterButton} onPress={handlePainelAdministrativo}>
+                  <Ionicons name="shield-checkmark-outline" size={20} color="#fff" style={styles.adminIcon} />
+                  <Text style={styles.adminButtonText}>PAINEL ADMINISTRATIVO</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Botão para Admin normal */}
+            {userRole === "admin" && adminPageRoute && (
+              <View style={styles.adminSection}>
+                <TouchableOpacity style={styles.adminButton} onPress={handleGerenciarMinisterios}>
+                  <Ionicons name="settings-outline" size={20} color="#fff" style={styles.adminIcon} />
+                  <Text style={styles.adminButtonText}>GERENCIAR MINISTÉRIO</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
         )}
 
         {/* Verificação se o usuário está logado */}
@@ -459,6 +476,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#4CAF50',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  adminMasterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#007aff', // Cor diferente para destacar o AdminMaster
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,

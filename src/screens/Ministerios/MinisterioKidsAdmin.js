@@ -1,4 +1,5 @@
 // MinisterioKidsAmdin.js
+// MinisterioKidsAdmin.js - Atualizado
 import React, { useState, useEffect, useContext } from "react";
 import {
   View,
@@ -45,13 +46,27 @@ export default function MinisterioKidsAdmin({ navigation }) {
   
   // Estados dos Eventos
   const [events, setEvents] = useState([]);
-  const [eventModalVisible, setEventModalVisible] = useState(false);
-  const [eventForm, setEventForm] = useState({
-    title: "",
-    description: "",
-    date: "",
-    time: "",
-    location: ""
+  const [scaleModalVisible, setScaleModalVisible] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [scaleForm, setScaleForm] = useState({
+    responsible: "",
+    helpers: "",
+    observations: ""
+  });
+
+  // Estados do Cadastro de Criança
+  const [childModalVisible, setChildModalVisible] = useState(false);
+  const [editingChild, setEditingChild] = useState(null);
+  const [childForm, setChildForm] = useState({
+    nome: "",
+    idade: "",
+    sexo: "",
+    nomePai: "",
+    nomeMae: "",
+    temNecessidadesEspeciais: false,
+    necessidadesEspeciais: "",
+    temSeletividadeAlimentar: false,
+    seletividadeAlimentar: "",
   });
 
   const userName = userData?.name || user?.displayName || "Líder";
@@ -114,11 +129,11 @@ export default function MinisterioKidsAdmin({ navigation }) {
     }
   };
 
-  // Carregar eventos
+  // Carregar eventos criados pelo AdminMaster
   const loadEvents = async () => {
     try {
-      const eventsRef = collection(db, "churchBasico", "ministerios", "conteudo", "kids", "events");
-      const q = query(eventsRef, orderBy("createdAt", "desc"));
+      const eventsRef = collection(db, "churchBasico", "sistema", "eventos");
+      const q = query(eventsRef, orderBy("criadoEm", "desc"));
       const querySnapshot = await getDocs(q);
       
       const eventsData = [];
@@ -163,8 +178,8 @@ export default function MinisterioKidsAdmin({ navigation }) {
       const checkinData = {
         childId: child.id,
         childName: child.nome,
-        parentId: child.parentId,
-        parentName: child.parentName,
+        nomePai: child.nomePai || "",
+        nomeMae: child.nomeMae || "",
         date: today,
         checkInTime: now,
         status: "checked-in",
@@ -222,55 +237,152 @@ export default function MinisterioKidsAdmin({ navigation }) {
     );
   };
 
-  // Salvar evento
-  const saveEvent = async () => {
-    if (!eventForm.title.trim() || !eventForm.date.trim()) {
-      Alert.alert("Erro", "Por favor, preencha pelo menos o título e a data");
+  // Abrir modal de criar escala
+  const openScaleModal = (event) => {
+    setSelectedEvent(event);
+    setScaleModalVisible(true);
+  };
+
+  // Salvar escala do Kids
+  const saveScale = async () => {
+    if (!scaleForm.responsible.trim()) {
+      Alert.alert("Erro", "Por favor, preencha pelo menos o responsável");
       return;
     }
 
     try {
       setLoading(true);
       
-      const eventData = {
-        ...eventForm,
-        title: eventForm.title.trim(),
-        description: eventForm.description.trim(),
+      const scaleData = {
+        eventId: selectedEvent.id,
+        eventName: selectedEvent.nome,
+        ministry: "kids",
+        responsible: scaleForm.responsible.trim(),
+        helpers: scaleForm.helpers.trim(),
+        observations: scaleForm.observations.trim(),
         createdBy: user.uid,
         createdByName: userName,
         createdAt: serverTimestamp(),
         isActive: true
       };
 
-      const eventId = `event_${Date.now()}`;
-      await setDoc(doc(db, "churchBasico", "ministerios", "conteudo", "kids", "events", eventId), eventData);
+      const scaleId = `kids_${selectedEvent.id}_${Date.now()}`;
+      await setDoc(doc(db, "churchBasico", "sistema", "escalas", scaleId), scaleData);
       
-      Alert.alert("Sucesso", "Evento criado com sucesso!");
-      setEventModalVisible(false);
-      resetEventForm();
-      await loadEvents();
+      Alert.alert("Sucesso", "Escala do Kids criada com sucesso!");
+      setScaleModalVisible(false);
+      resetScaleForm();
     } catch (error) {
-      console.log("Erro ao salvar evento:", error);
-      Alert.alert("Erro", "Não foi possível salvar o evento");
+      console.log("Erro ao salvar escala:", error);
+      Alert.alert("Erro", "Não foi possível salvar a escala");
     } finally {
       setLoading(false);
     }
   };
 
-  const resetEventForm = () => {
-    setEventForm({
-      title: "",
-      description: "",
-      date: "",
-      time: "",
-      location: ""
+  const resetScaleForm = () => {
+    setScaleForm({
+      responsible: "",
+      helpers: "",
+      observations: ""
     });
+    setSelectedEvent(null);
   };
 
-  const deleteEvent = async (eventId) => {
+  // Funções do Cadastro de Criança
+  const resetChildForm = () => {
+    setChildForm({
+      nome: "",
+      idade: "",
+      sexo: "",
+      nomePai: "",
+      nomeMae: "",
+      temNecessidadesEspeciais: false,
+      necessidadesEspeciais: "",
+      temSeletividadeAlimentar: false,
+      seletividadeAlimentar: "",
+    });
+    setEditingChild(null);
+  };
+
+  const openAddChildModal = () => {
+    resetChildForm();
+    setChildModalVisible(true);
+  };
+
+  const openEditChildModal = (child) => {
+    setChildForm({
+      nome: child.nome || "",
+      idade: child.idade || "",
+      sexo: child.sexo || "",
+      nomePai: child.nomePai || "",
+      nomeMae: child.nomeMae || "",
+      temNecessidadesEspeciais: child.temNecessidadesEspeciais || false,
+      necessidadesEspeciais: child.necessidadesEspeciais || "",
+      temSeletividadeAlimentar: child.temSeletividadeAlimentar || false,
+      seletividadeAlimentar: child.seletividadeAlimentar || "",
+    });
+    setEditingChild(child);
+    setChildModalVisible(true);
+  };
+
+  const saveChild = async () => {
+    if (!childForm.nome.trim() || !childForm.idade.trim() || !childForm.sexo.trim()) {
+      Alert.alert("Erro", "Por favor, preencha os campos obrigatórios (Nome, Idade e Sexo)");
+      return;
+    }
+
+    if (!childForm.nomePai.trim() && !childForm.nomeMae.trim()) {
+      Alert.alert("Erro", "Por favor, preencha pelo menos o nome do pai ou da mãe");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const childData = {
+        nome: childForm.nome.trim(),
+        idade: childForm.idade.trim(),
+        sexo: childForm.sexo,
+        nomePai: childForm.nomePai.trim(),
+        nomeMae: childForm.nomeMae.trim(),
+        temNecessidadesEspeciais: childForm.temNecessidadesEspeciais,
+        necessidadesEspeciais: childForm.temNecessidadesEspeciais ? childForm.necessidadesEspeciais.trim() : "",
+        temSeletividadeAlimentar: childForm.temSeletividadeAlimentar,
+        seletividadeAlimentar: childForm.temSeletividadeAlimentar ? childForm.seletividadeAlimentar.trim() : "",
+        registeredBy: user.uid,
+        registeredByName: userName,
+        createdAt: editingChild ? editingChild.createdAt : serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      const childId = editingChild ? editingChild.id : `child_${Date.now()}`;
+      const childRef = doc(db, "churchBasico", "users", "filhos", childId);
+
+      if (editingChild) {
+        await updateDoc(childRef, childData);
+        Alert.alert("Sucesso", "Dados da criança atualizados com sucesso!");
+      } else {
+        await setDoc(childRef, childData);
+        Alert.alert("Sucesso", "Criança cadastrada com sucesso!");
+      }
+
+      setChildModalVisible(false);
+      resetChildForm();
+      await loadAllChildren();
+
+    } catch (error) {
+      console.log("Erro ao salvar criança:", error);
+      Alert.alert("Erro", `Não foi possível salvar os dados: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteChild = (child) => {
     Alert.alert(
       "Confirmar Exclusão",
-      "Tem certeza que deseja excluir este evento?",
+      `Tem certeza que deseja excluir ${child.nome}?`,
       [
         { text: "Cancelar", style: "cancel" },
         {
@@ -279,20 +391,29 @@ export default function MinisterioKidsAdmin({ navigation }) {
           onPress: async () => {
             try {
               setLoading(true);
-              await deleteDoc(doc(db, "churchBasico", "ministerios", "conteudo", "kids", "events", eventId));
-              Alert.alert("Sucesso", "Evento excluído com sucesso!");
-              await loadEvents();
+              await deleteDoc(doc(db, "churchBasico", "users", "filhos", child.id));
+              Alert.alert("Sucesso", "Criança removida com sucesso!");
+              await loadAllChildren();
             } catch (error) {
-              console.log("Erro ao excluir evento:", error);
-              Alert.alert("Erro", "Não foi possível excluir o evento");
+              console.log("Erro ao excluir criança:", error);
+              Alert.alert("Erro", "Não foi possível excluir. Tente novamente.");
             } finally {
               setLoading(false);
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
+
+  const CheckBox = ({ checked, onPress, label }) => (
+    <TouchableOpacity style={styles.checkboxContainer} onPress={onPress}>
+      <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
+        {checked && <Ionicons name="checkmark" size={16} color="#fff" />}
+      </View>
+      <Text style={styles.checkboxLabel}>{label}</Text>
+    </TouchableOpacity>
+  );
 
   const getChildrenStats = () => {
     const boys = allChildren.filter(child => child.sexo === "Masculino").length;
@@ -304,68 +425,92 @@ export default function MinisterioKidsAdmin({ navigation }) {
     const stats = getChildrenStats();
     
     return (
-      <FlatList
-        style={styles.tabContent}
-        data={allChildren} // Usar apenas os dados das crianças
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={() => (
-          <View>
-            <Text style={styles.tabTitle}>Dashboard - Ministério Kids</Text>
-            
-            <View style={styles.statsContainer}>
-              <View style={styles.statCard}>
-                <Ionicons name="people" size={24} color="#B8986A" />
-                <Text style={styles.statNumber}>{stats.total}</Text>
-                <Text style={styles.statLabel}>Total de Crianças</Text>
-              </View>
-              
-              <View style={styles.statCard}>
-                <Ionicons name="male" size={24} color="#4A90E2" />
-                <Text style={styles.statNumber}>{stats.boys}</Text>
-                <Text style={styles.statLabel}>Meninos</Text>
-              </View>
-              
-              <View style={styles.statCard}>
-                <Ionicons name="female" size={24} color="#E24A90" />
-                <Text style={styles.statNumber}>{stats.girls}</Text>
-                <Text style={styles.statLabel}>Meninas</Text>
-              </View>
-              
-              <View style={styles.statCard}>
-                <Ionicons name="checkmark-circle" size={24} color="#50C878" />
-                <Text style={styles.statNumber}>{checkedInChildren.length}</Text>
-                <Text style={styles.statLabel}>Presentes Hoje</Text>
-              </View>
-            </View>
+      <View style={styles.tabContent}>
+        <Text style={styles.tabTitle}>Dashboard - Ministério Kids</Text>
+        
+        <View style={styles.statsContainer}>
+          <View style={styles.statCard}>
+            <Ionicons name="people" size={24} color="#B8986A" />
+            <Text style={styles.statNumber}>{stats.total}</Text>
+            <Text style={styles.statLabel}>Total de Crianças</Text>
+          </View>
+          
+          <View style={styles.statCard}>
+            <Ionicons name="male" size={24} color="#4A90E2" />
+            <Text style={styles.statNumber}>{stats.boys}</Text>
+            <Text style={styles.statLabel}>Meninos</Text>
+          </View>
+          
+          <View style={styles.statCard}>
+            <Ionicons name="female" size={24} color="#E24A90" />
+            <Text style={styles.statNumber}>{stats.girls}</Text>
+            <Text style={styles.statLabel}>Meninas</Text>
+          </View>
+          
+          <View style={styles.statCard}>
+            <Ionicons name="checkmark-circle" size={24} color="#50C878" />
+            <Text style={styles.statNumber}>{checkedInChildren.length}</Text>
+            <Text style={styles.statLabel}>Presentes Hoje</Text>
+          </View>
+        </View>
 
-            <Text style={styles.sectionTitle}>Crianças Cadastradas</Text>
-          </View>
-        )}
-        ListEmptyComponent={() => (
-          <Text style={styles.emptyText}>Nenhuma criança cadastrada ainda</Text>
-        )}
-        renderItem={({ item }) => (
-          <View style={styles.childItem}>
-            <View style={styles.childInfo}>
-              <Text style={styles.childName}>{item.nome}</Text>
-              <Text style={styles.childDetails}>
-                {item.idade} anos • {item.sexo} • {item.parentName}
-              </Text>
-              {item.temNecessidadesEspeciais && (
-                <Text style={styles.specialNeed}>⚠️ Necessidades especiais</Text>
-              )}
+        {/* Botão Cadastrar Criança */}
+        <TouchableOpacity style={styles.addChildButton} onPress={openAddChildModal}>
+          <Ionicons name="person-add" size={20} color="#fff" />
+          <Text style={styles.addChildButtonText}>Cadastrar Criança</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.sectionTitle}>Crianças Cadastradas</Text>
+        
+        <FlatList
+          data={allChildren}
+          keyExtractor={(item) => item.id}
+          ListEmptyComponent={() => (
+            <Text style={styles.emptyText}>Nenhuma criança cadastrada ainda</Text>
+          )}
+          renderItem={({ item }) => (
+            <View style={styles.childItem}>
+              <View style={styles.childInfo}>
+                <Text style={styles.childName}>{item.nome}</Text>
+                <Text style={styles.childDetails}>
+                  {item.idade} anos • {item.sexo}
+                </Text>
+                {item.nomePai && (
+                  <Text style={styles.parentName}>Pai: {item.nomePai}</Text>
+                )}
+                {item.nomeMae && (
+                  <Text style={styles.parentName}>Mãe: {item.nomeMae}</Text>
+                )}
+                {item.temNecessidadesEspeciais && (
+                  <Text style={styles.specialNeed}>⚠️ Necessidades especiais</Text>
+                )}
+              </View>
+              <View style={styles.childActions}>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => openEditChildModal(item)}
+                >
+                  <Ionicons name="pencil" size={16} color="#B8986A" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.deleteButton]}
+                  onPress={() => deleteChild(item)}
+                >
+                  <Ionicons name="trash" size={16} color="#ff4444" />
+                </TouchableOpacity>
+                <View style={styles.statusIndicator}>
+                  {checkedInChildren.some(child => child.childId === item.id) ? (
+                    <Ionicons name="checkmark-circle" size={20} color="#50C878" />
+                  ) : (
+                    <Ionicons name="ellipse-outline" size={20} color="#ccc" />
+                  )}
+                </View>
+              </View>
             </View>
-            <View style={styles.statusIndicator}>
-              {checkedInChildren.some(child => child.childId === item.id) ? (
-                <Ionicons name="checkmark-circle" size={20} color="#50C878" />
-              ) : (
-                <Ionicons name="ellipse-outline" size={20} color="#ccc" />
-              )}
-            </View>
-          </View>
-        )}
-        showsVerticalScrollIndicator={false}
-      />
+          )}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
     );
   };
 
@@ -406,8 +551,14 @@ export default function MinisterioKidsAdmin({ navigation }) {
                     <View style={styles.childInfo}>
                       <Text style={styles.childName}>{child.nome}</Text>
                       <Text style={styles.childDetails}>
-                        {child.idade} anos • {child.sexo} • {child.parentName}
+                        {child.idade} anos • {child.sexo}
                       </Text>
+                      {child.nomePai && (
+                        <Text style={styles.parentName}>Pai: {child.nomePai}</Text>
+                      )}
+                      {child.nomeMae && (
+                        <Text style={styles.parentName}>Mãe: {child.nomeMae}</Text>
+                      )}
                     </View>
                     <Ionicons name="add-circle-outline" size={24} color="#B8986A" />
                   </TouchableOpacity>
@@ -431,7 +582,12 @@ export default function MinisterioKidsAdmin({ navigation }) {
             <Text style={styles.childDetails}>
               Check-in: {new Date(item.checkInTime.toDate()).toLocaleTimeString()}
             </Text>
-            <Text style={styles.parentName}>Responsável: {item.parentName}</Text>
+            {item.nomePai && (
+              <Text style={styles.parentName}>Pai: {item.nomePai}</Text>
+            )}
+            {item.nomeMae && (
+              <Text style={styles.parentName}>Mãe: {item.nomeMae}</Text>
+            )}
           </View>
           <TouchableOpacity
             style={styles.checkoutButton}
@@ -453,14 +609,7 @@ export default function MinisterioKidsAdmin({ navigation }) {
       keyExtractor={(item) => item.id}
       ListHeaderComponent={() => (
         <View style={styles.eventsHeader}>
-          <Text style={styles.tabTitle}>Eventos Kids</Text>
-          <TouchableOpacity
-            style={styles.addEventButton}
-            onPress={() => setEventModalVisible(true)}
-          >
-            <Ionicons name="add" size={20} color="#fff" />
-            <Text style={styles.addEventButtonText}>Novo Evento</Text>
-          </TouchableOpacity>
+          <Text style={styles.tabTitle}>Eventos Cadastrados</Text>
         </View>
       )}
       ListEmptyComponent={() => (
@@ -469,27 +618,18 @@ export default function MinisterioKidsAdmin({ navigation }) {
       renderItem={({ item }) => (
         <View style={styles.eventItem}>
           <View style={styles.eventContent}>
-            <Text style={styles.eventTitle}>{item.title}</Text>
-            {item.description && (
-              <Text style={styles.eventDescription}>{item.description}</Text>
-            )}
+            <Text style={styles.eventTitle}>{item.nome}</Text>
             <View style={styles.eventDetails}>
-              {item.date && (
-                <Text style={styles.eventDetail}>📅 {item.date}</Text>
-              )}
-              {item.time && (
-                <Text style={styles.eventDetail}>⏰ {item.time}</Text>
-              )}
-              {item.location && (
-                <Text style={styles.eventDetail}>📍 {item.location}</Text>
-              )}
+              <Text style={styles.eventDetail}>📅 {item.data}</Text>
+              <Text style={styles.eventDetail}>⏰ {item.horario}</Text>
             </View>
           </View>
           <TouchableOpacity
-            style={styles.deleteEventButton}
-            onPress={() => deleteEvent(item.id)}
+            style={styles.scaleButton}
+            onPress={() => openScaleModal(item)}
           >
-            <Ionicons name="trash" size={16} color="#ff4444" />
+            <Ionicons name="people" size={16} color="#fff" />
+            <Text style={styles.scaleButtonText}>Criar Escala</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -578,24 +718,24 @@ export default function MinisterioKidsAdmin({ navigation }) {
         {activeTab === "events" && renderEvents()}
       </View>
 
-      {/* Modal de Novo Evento */}
+      {/* Modal de Criar Escala */}
       <Modal
-        visible={eventModalVisible}
+        visible={scaleModalVisible}
         animationType="slide"
         transparent={true}
         onRequestClose={() => {
-          setEventModalVisible(false);
-          resetEventForm();
+          setScaleModalVisible(false);
+          resetScaleForm();
         }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Novo Evento Kids</Text>
+              <Text style={styles.modalTitle}>Criar Escala - Kids</Text>
               <TouchableOpacity
                 onPress={() => {
-                  setEventModalVisible(false);
-                  resetEventForm();
+                  setScaleModalVisible(false);
+                  resetScaleForm();
                 }}
               >
                 <Ionicons name="close" size={24} color="#666" />
@@ -603,55 +743,45 @@ export default function MinisterioKidsAdmin({ navigation }) {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
+              {selectedEvent && (
+                <View style={styles.eventInfo}>
+                  <Text style={styles.eventInfoTitle}>Evento: {selectedEvent.nome}</Text>
+                  <Text style={styles.eventInfoDetail}>Data: {selectedEvent.data}</Text>
+                  <Text style={styles.eventInfoDetail}>Horário: {selectedEvent.horario}</Text>
+                </View>
+              )}
+
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Título do Evento: *</Text>
+                <Text style={styles.label}>Responsável: *</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Digite o título do evento"
-                  value={eventForm.title}
-                  onChangeText={(text) => setEventForm({ ...eventForm, title: text })}
+                  placeholder="Nome do responsável pelo Kids"
+                  value={scaleForm.responsible}
+                  onChangeText={(text) => setScaleForm({ ...scaleForm, responsible: text })}
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Descrição:</Text>
+                <Text style={styles.label}>Auxiliares:</Text>
                 <TextInput
                   style={[styles.input, styles.textArea]}
-                  placeholder="Descreva o evento"
-                  value={eventForm.description}
-                  onChangeText={(text) => setEventForm({ ...eventForm, description: text })}
+                  placeholder="Liste os auxiliares (separados por vírgula)"
+                  value={scaleForm.helpers}
+                  onChangeText={(text) => setScaleForm({ ...scaleForm, helpers: text })}
                   multiline
                   numberOfLines={3}
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Data: *</Text>
+                <Text style={styles.label}>Observações:</Text>
                 <TextInput
-                  style={styles.input}
-                  placeholder="Ex: 15/12/2024"
-                  value={eventForm.date}
-                  onChangeText={(text) => setEventForm({ ...eventForm, date: text })}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Horário:</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ex: 9h00"
-                  value={eventForm.time}
-                  onChangeText={(text) => setEventForm({ ...eventForm, time: text })}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Local:</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ex: Sala Kids"
-                  value={eventForm.location}
-                  onChangeText={(text) => setEventForm({ ...eventForm, location: text })}
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Observações especiais para este evento"
+                  value={scaleForm.observations}
+                  onChangeText={(text) => setScaleForm({ ...scaleForm, observations: text })}
+                  multiline
+                  numberOfLines={3}
                 />
               </View>
 
@@ -659,8 +789,8 @@ export default function MinisterioKidsAdmin({ navigation }) {
                 <TouchableOpacity
                   style={[styles.modalButton, styles.cancelButton]}
                   onPress={() => {
-                    setEventModalVisible(false);
-                    resetEventForm();
+                    setScaleModalVisible(false);
+                    resetScaleForm();
                   }}
                 >
                   <Text style={styles.cancelButtonText}>Cancelar</Text>
@@ -668,13 +798,220 @@ export default function MinisterioKidsAdmin({ navigation }) {
 
                 <TouchableOpacity
                   style={[styles.modalButton, styles.saveButton]}
-                  onPress={saveEvent}
+                  onPress={saveScale}
                   disabled={loading}
                 >
                   {loading ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
-                    <Text style={styles.saveButtonText}>Salvar Evento</Text>
+                    <Text style={styles.saveButtonText}>Salvar Escala</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Cadastro/Edição de Criança */}
+      <Modal
+        visible={childModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setChildModalVisible(false);
+          resetChildForm();
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>
+                  {editingChild ? "Editar Criança" : "Cadastrar Criança"}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setChildModalVisible(false);
+                    resetChildForm();
+                  }}
+                >
+                  <Ionicons name="close" size={24} color="#666" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Nome */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Nome da Criança: *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Digite o nome da criança"
+                  value={childForm.nome}
+                  onChangeText={(text) => setChildForm({ ...childForm, nome: text })}
+                />
+              </View>
+
+              {/* Idade */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Idade: *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Digite a idade"
+                  value={childForm.idade}
+                  onChangeText={(text) => setChildForm({ ...childForm, idade: text })}
+                  keyboardType="numeric"
+                />
+              </View>
+
+              {/* Sexo */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Sexo: *</Text>
+                <View style={styles.radioGroup}>
+                  <TouchableOpacity
+                    style={styles.radioOption}
+                    onPress={() => setChildForm({ ...childForm, sexo: "Masculino" })}
+                  >
+                    <View style={[
+                      styles.radio,
+                      childForm.sexo === "Masculino" && styles.radioSelected
+                    ]} />
+                    <Text style={styles.radioLabel}>Masculino</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={styles.radioOption}
+                    onPress={() => setChildForm({ ...childForm, sexo: "Feminino" })}
+                  >
+                    <View style={[
+                      styles.radio,
+                      childForm.sexo === "Feminino" && styles.radioSelected
+                    ]} />
+                    <Text style={styles.radioLabel}>Feminino</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Nome do Pai */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Nome do Pai:</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Digite o nome do pai"
+                  value={childForm.nomePai}
+                  onChangeText={(text) => setChildForm({ ...childForm, nomePai: text })}
+                />
+              </View>
+
+              {/* Nome da Mãe */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Nome da Mãe:</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Digite o nome da mãe"
+                  value={childForm.nomeMae}
+                  onChangeText={(text) => setChildForm({ ...childForm, nomeMae: text })}
+                />
+              </View>
+
+              <Text style={styles.note}>
+                * Pelo menos o nome do pai ou da mãe deve ser preenchido
+              </Text>
+
+              {/* Necessidades Especiais */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Tem Necessidades Especiais?</Text>
+                <View style={styles.checkboxRow}>
+                  <CheckBox
+                    checked={childForm.temNecessidadesEspeciais}
+                    onPress={() => setChildForm({
+                      ...childForm,
+                      temNecessidadesEspeciais: !childForm.temNecessidadesEspeciais,
+                      necessidadesEspeciais: !childForm.temNecessidadesEspeciais ? "" : childForm.necessidadesEspeciais
+                    })}
+                    label="Sim"
+                  />
+                  <CheckBox
+                    checked={!childForm.temNecessidadesEspeciais}
+                    onPress={() => setChildForm({
+                      ...childForm,
+                      temNecessidadesEspeciais: false,
+                      necessidadesEspeciais: ""
+                    })}
+                    label="Não"
+                  />
+                </View>
+                
+                {childForm.temNecessidadesEspeciais && (
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    placeholder="Descreva as necessidades especiais"
+                    value={childForm.necessidadesEspeciais}
+                    onChangeText={(text) => setChildForm({ ...childForm, necessidadesEspeciais: text })}
+                    multiline
+                    numberOfLines={3}
+                  />
+                )}
+              </View>
+
+              {/* Seletividade Alimentar */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Tem alguma Seletividade Alimentar?</Text>
+                <View style={styles.checkboxRow}>
+                  <CheckBox
+                    checked={childForm.temSeletividadeAlimentar}
+                    onPress={() => setChildForm({
+                      ...childForm,
+                      temSeletividadeAlimentar: !childForm.temSeletividadeAlimentar,
+                      seletividadeAlimentar: !childForm.temSeletividadeAlimentar ? "" : childForm.seletividadeAlimentar
+                    })}
+                    label="Sim"
+                  />
+                  <CheckBox
+                    checked={!childForm.temSeletividadeAlimentar}
+                    onPress={() => setChildForm({
+                      ...childForm,
+                      temSeletividadeAlimentar: false,
+                      seletividadeAlimentar: ""
+                    })}
+                    label="Não"
+                  />
+                </View>
+                
+                {childForm.temSeletividadeAlimentar && (
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    placeholder="Descreva a seletividade alimentar"
+                    value={childForm.seletividadeAlimentar}
+                    onChangeText={(text) => setChildForm({ ...childForm, seletividadeAlimentar: text })}
+                    multiline
+                    numberOfLines={3}
+                  />
+                )}
+              </View>
+
+              {/* Botões */}
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={() => {
+                    setChildModalVisible(false);
+                    resetChildForm();
+                  }}
+                >
+                  <Text style={styles.cancelButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.saveButton]}
+                  onPress={saveChild}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>
+                      {editingChild ? "Atualizar" : "Salvar"}
+                    </Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -782,6 +1119,22 @@ const styles = StyleSheet.create({
     color: "#666",
     textAlign: "center",
   },
+  addChildButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#B8986A",
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    marginBottom: 15,
+    gap: 8,
+  },
+  addChildButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
   section: {
     backgroundColor: "#fff",
     borderRadius: 10,
@@ -829,6 +1182,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#B8986A",
     marginTop: 2,
+  },
+  childActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  actionButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: "#f8f8f8",
+  },
+  deleteButton: {
+    backgroundColor: "#ffe6e6",
   },
   statusIndicator: {
     padding: 5,
@@ -887,24 +1253,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   eventsHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     marginBottom: 20,
-  },
-  addEventButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#B8986A",
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 5,
-  },
-  addEventButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
   },
   eventItem: {
     flexDirection: "row",
@@ -914,6 +1263,7 @@ const styles = StyleSheet.create({
     padding: 15,
     marginBottom: 10,
     elevation: 2,
+    alignItems: "center",
   },
   eventContent: {
     flex: 1,
@@ -922,24 +1272,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#333",
-    marginBottom: 5,
-  },
-  eventDescription: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 10,
+    marginBottom: 8,
   },
   eventDetails: {
     gap: 5,
   },
   eventDetail: {
-    fontSize: 12,
-    color: "#999",
+    fontSize: 14,
+    color: "#666",
   },
-  deleteEventButton: {
-    padding: 8,
+  scaleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#B8986A",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 6,
-    backgroundColor: "#ffe6e6",
+    gap: 5,
+  },
+  scaleButtonText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
   },
   emptyText: {
     textAlign: "center",
@@ -968,7 +1322,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 15,
     width: "90%",
-    maxHeight: "80%",
+    maxHeight: "85%",
     padding: 20,
   },
   modalHeader: {
@@ -981,6 +1335,25 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     color: "#333",
+  },
+  eventInfo: {
+    backgroundColor: "#f8f9fa",
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: "#B8986A",
+  },
+  eventInfoTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 5,
+  },
+  eventInfoDetail: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 2,
   },
   inputGroup: {
     marginBottom: 15,
@@ -1003,6 +1376,63 @@ const styles = StyleSheet.create({
   textArea: {
     height: 80,
     textAlignVertical: "top",
+  },
+  radioGroup: {
+    flexDirection: "row",
+    gap: 20,
+  },
+  radioOption: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#ddd",
+    marginRight: 8,
+  },
+  radioSelected: {
+    borderColor: "#B8986A",
+    backgroundColor: "#B8986A",
+  },
+  radioLabel: {
+    fontSize: 14,
+    color: "#333",
+  },
+  checkboxRow: {
+    flexDirection: "row",
+    gap: 20,
+    marginBottom: 10,
+  },
+  checkboxContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: "#ddd",
+    marginRight: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxChecked: {
+    backgroundColor: "#B8986A",
+    borderColor: "#B8986A",
+  },
+  checkboxLabel: {
+    fontSize: 14,
+    color: "#333",
+  },
+  note: {
+    fontSize: 12,
+    color: "#B8986A",
+    fontStyle: "italic",
+    marginBottom: 15,
   },
   modalButtons: {
     flexDirection: "row",
@@ -1031,4 +1461,5 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
-  }});
+  },
+});

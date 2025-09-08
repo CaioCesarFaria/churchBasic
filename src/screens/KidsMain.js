@@ -6,9 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Modal,
-  TextInput,
-  Alert,
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -17,39 +14,20 @@ import { AuthContext } from "../context/AuthContext";
 import { db } from "../Firebase/FirebaseConfig";
 import { 
   collection, 
-  doc, 
-  setDoc, 
   getDocs, 
-  deleteDoc, 
-  updateDoc,
   query,
   where,
   orderBy,
-  serverTimestamp
 } from "firebase/firestore";
 import DisplayUser from "../components/DisplayUser";
 
 export default function KidsMain({ navigation }) {
   const { user, userData } = useContext(AuthContext);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editMode, setEditMode] = useState(false);
-  const [editingChild, setEditingChild] = useState(null);
   const [loading, setLoading] = useState(false);
   const [children, setChildren] = useState([]);
-  const [events, setEvents] = useState([]); // Novo estado para eventos
+  const [events, setEvents] = useState([]);
   const [expandedAvisos, setExpandedAvisos] = useState(false);
   const [expandedFilhos, setExpandedFilhos] = useState(false);
-
-  // Estados do formulário
-  const [childForm, setChildForm] = useState({
-    nome: "",
-    idade: "",
-    sexo: "",
-    temNecessidadesEspeciais: false,
-    necessidadesEspeciais: "",
-    temSeletividadeAlimentar: false,
-    seletividadeAlimentar: "",
-  });
 
   const userName = userData?.name || user?.displayName || user?.email || "Visitante";
 
@@ -58,7 +36,7 @@ export default function KidsMain({ navigation }) {
     console.log("useEffect executado, user:", user?.uid);
     if (user?.uid) {
       loadChildren();
-      loadEvents(); // Carregar eventos também
+      loadEvents();
     } else {
       console.log("User não está disponível ainda");
     }
@@ -75,7 +53,7 @@ export default function KidsMain({ navigation }) {
       setLoading(true);
       console.log("Carregando filhos para o usuário:", user.uid);
       
-      // Corrigido: buscar na estrutura correta
+      // Buscar crianças onde o pai ou a mãe é o usuário atual
       const childrenRef = collection(db, "churchBasico", "users", "filhos");
       const q = query(childrenRef, where("parentId", "==", user.uid));
       const querySnapshot = await getDocs(q);
@@ -93,206 +71,60 @@ export default function KidsMain({ navigation }) {
     } catch (error) {
       console.log("Erro ao carregar filhos:", error);
       console.log("Detalhes do erro:", error.message);
-      Alert.alert("Erro", "Não foi possível carregar os dados dos filhos");
     } finally {
       setLoading(false);
     }
   };
 
-  /// Função loadEvents corrigida para KidsMain.js
-const loadEvents = async () => {
-  try {
-    console.log("Carregando eventos do Kids...");
-    
-    // Caminho da coleção de eventos (igual ao MinisterioKidsAdmin.js)
-    const eventsRef = collection(db, "churchBasico", "ministerios", "conteudo", "kids", "events");
-    
-    // Remover o filtro isActive e orderBy que podem causar problemas se não existirem
-    // const q = query(eventsRef, where("isActive", "==", true), orderBy("createdAt", "desc"));
-    
-    // Primeiro tentar buscar todos os eventos
-    const querySnapshot = await getDocs(eventsRef);
-    
-    const eventsData = [];
-    querySnapshot.forEach((doc) => {
-      const eventData = doc.data();
-      console.log("Evento encontrado:", doc.id, eventData);
-      
-      // Filtrar apenas eventos ativos no código, não na query
-      if (eventData.isActive !== false) { // Se não existir o campo, considera como ativo
-        eventsData.push({ id: doc.id, ...eventData });
-      }
-    });
-    
-    // Ordenar por data de criação se existir
-    eventsData.sort((a, b) => {
-      if (a.createdAt && b.createdAt) {
-        return b.createdAt.toDate() - a.createdAt.toDate();
-      }
-      return 0;
-    });
-    
-    console.log("Total de eventos carregados:", eventsData.length);
-    setEvents(eventsData);
-  } catch (error) {
-    console.log("Erro ao carregar eventos:", error);
-    console.log("Detalhes do erro:", error.message);
-    
-    // Tentar buscar sem filtros em caso de erro
+  const loadEvents = async () => {
     try {
-      console.log("Tentando buscar eventos sem filtros...");
+      console.log("Carregando eventos do Kids...");
+      
       const eventsRef = collection(db, "churchBasico", "ministerios", "conteudo", "kids", "events");
       const querySnapshot = await getDocs(eventsRef);
       
       const eventsData = [];
       querySnapshot.forEach((doc) => {
-        console.log("Evento encontrado (sem filtro):", doc.id, doc.data());
-        eventsData.push({ id: doc.id, ...doc.data() });
+        const eventData = doc.data();
+        console.log("Evento encontrado:", doc.id, eventData);
+        
+        if (eventData.isActive !== false) {
+          eventsData.push({ id: doc.id, ...eventData });
+        }
       });
       
+      // Ordenar por data de criação se existir
+      eventsData.sort((a, b) => {
+        if (a.createdAt && b.createdAt) {
+          return b.createdAt.toDate() - a.createdAt.toDate();
+        }
+        return 0;
+      });
+      
+      console.log("Total de eventos carregados:", eventsData.length);
       setEvents(eventsData);
-      console.log("Eventos carregados sem filtros:", eventsData.length);
-    } catch (secondError) {
-      console.log("Erro na segunda tentativa:", secondError);
-    }
-  }
-};
-
-  const resetForm = () => {
-    setChildForm({
-      nome: "",
-      idade: "",
-      sexo: "",
-      temNecessidadesEspeciais: false,
-      necessidadesEspeciais: "",
-      temSeletividadeAlimentar: false,
-      seletividadeAlimentar: "",
-    });
-    setEditMode(false);
-    setEditingChild(null);
-  };
-
-  const openAddModal = () => {
-    resetForm();
-    setModalVisible(true);
-  };
-
-  const openEditModal = (child) => {
-    setChildForm({
-      nome: child.nome || "",
-      idade: child.idade || "",
-      sexo: child.sexo || "",
-      temNecessidadesEspeciais: child.temNecessidadesEspeciais || false,
-      necessidadesEspeciais: child.necessidadesEspeciais || "",
-      temSeletividadeAlimentar: child.temSeletividadeAlimentar || false,
-      seletividadeAlimentar: child.seletividadeAlimentar || "",
-    });
-    setEditingChild(child);
-    setEditMode(true);
-    setModalVisible(true);
-  };
-
-  const saveChild = async () => {
-    // Verificação de segurança para o usuário
-    if (!user || !user.uid) {
-      Alert.alert("Erro", "Usuário não autenticado. Faça login novamente.");
-      return;
-    }
-
-    if (!childForm.nome.trim() || !childForm.idade.trim() || !childForm.sexo.trim()) {
-      Alert.alert("Erro", "Por favor, preencha os campos obrigatórios (Nome, Idade e Sexo)");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      
-      console.log("Salvando filho para usuário:", user.uid);
-      console.log("Dados do formulário:", childForm);
-      
-      const childData = {
-        nome: childForm.nome.trim(),
-        idade: childForm.idade.trim(),
-        sexo: childForm.sexo,
-        temNecessidadesEspeciais: childForm.temNecessidadesEspeciais,
-        necessidadesEspeciais: childForm.temNecessidadesEspeciais ? childForm.necessidadesEspeciais.trim() : "",
-        temSeletividadeAlimentar: childForm.temSeletividadeAlimentar,
-        seletividadeAlimentar: childForm.temSeletividadeAlimentar ? childForm.seletividadeAlimentar.trim() : "",
-        parentId: user.uid,
-        parentName: userName,
-        createdAt: editMode ? editingChild.createdAt : serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-
-      console.log("childData preparado:", childData);
-
-      // Gerar ID único para novo filho ou usar o existente para edição
-      const childId = editMode ? editingChild.id : `child_${user.uid}_${Date.now()}`;
-      console.log("childId gerado:", childId);
-      
-      // Corrigido: salvar na estrutura correta (mesmo nível que members e lideres)
-      const childRef = doc(db, "churchBasico", "users", "filhos", childId);
-      console.log("Referência do documento:", childRef.path);
-
-      if (editMode) {
-        await updateDoc(childRef, childData);
-        console.log("Filho atualizado com sucesso");
-        Alert.alert("Sucesso", "Dados do filho atualizados com sucesso!");
-      } else {
-        await setDoc(childRef, childData);
-        console.log("Filho criado com sucesso");
-        Alert.alert("Sucesso", "Filho cadastrado com sucesso!");
-      }
-
-      setModalVisible(false);
-      resetForm();
-      await loadChildren(); // Recarrega a lista
-
     } catch (error) {
-      console.log("Erro ao salvar filho:", error);
+      console.log("Erro ao carregar eventos:", error);
       console.log("Detalhes do erro:", error.message);
-      Alert.alert("Erro", `Não foi possível salvar os dados: ${error.message}`);
-    } finally {
-      setLoading(false);
+      
+      try {
+        console.log("Tentando buscar eventos sem filtros...");
+        const eventsRef = collection(db, "churchBasico", "ministerios", "conteudo", "kids", "events");
+        const querySnapshot = await getDocs(eventsRef);
+        
+        const eventsData = [];
+        querySnapshot.forEach((doc) => {
+          console.log("Evento encontrado (sem filtro):", doc.id, doc.data());
+          eventsData.push({ id: doc.id, ...doc.data() });
+        });
+        
+        setEvents(eventsData);
+        console.log("Eventos carregados sem filtros:", eventsData.length);
+      } catch (secondError) {
+        console.log("Erro na segunda tentativa:", secondError);
+      }
     }
   };
-
-  const deleteChild = (child) => {
-    Alert.alert(
-      "Confirmar Exclusão",
-      `Tem certeza que deseja excluir ${child.nome}?`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Excluir",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setLoading(true);
-              // Corrigido: excluir da estrutura correta
-              await deleteDoc(doc(db, "churchBasico", "users", "filhos", child.id));
-              Alert.alert("Sucesso", "Filho removido com sucesso!");
-              await loadChildren();
-            } catch (error) {
-              console.log("Erro ao excluir filho:", error);
-              Alert.alert("Erro", "Não foi possível excluir. Tente novamente.");
-            } finally {
-              setLoading(false);
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const CheckBox = ({ checked, onPress, label }) => (
-    <TouchableOpacity style={styles.checkboxContainer} onPress={onPress}>
-      <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
-        {checked && <Ionicons name="checkmark" size={16} color="#fff" />}
-      </View>
-      <Text style={styles.checkboxLabel}>{label}</Text>
-    </TouchableOpacity>
-  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -306,13 +138,19 @@ const loadEvents = async () => {
           <Text style={styles.title}>KIDS</Text>
         </View>
 
-        {/* Botão Cadastrar Filho */}
-        <TouchableOpacity style={styles.addButton} onPress={openAddModal}>
-          <Ionicons name="add-circle-outline" size={24} color="#fff" />
-          <Text style={styles.addButtonText}>Cadastre seu filho(a)!</Text>
-        </TouchableOpacity>
+        {/* Informativo sobre cadastro */}
+        <View style={styles.infoCard}>
+          <Ionicons name="information-circle-outline" size={24} color="#4A90E2" />
+          <View style={styles.infoContent}>
+            <Text style={styles.infoTitle}>Cadastro de Crianças</Text>
+            <Text style={styles.infoText}>
+              O cadastro dos filhos é feito pelo líder do ministério Kids. 
+              Entre em contato com a liderança para cadastrar seu filho(a).
+            </Text>
+          </View>
+        </View>
 
-        {/* Card Avisos KIDS */}
+        {/* Card Eventos KIDS */}
         <TouchableOpacity 
           style={styles.expandableCard}
           onPress={() => setExpandedAvisos(!expandedAvisos)}
@@ -364,7 +202,7 @@ const loadEvents = async () => {
                     🎨 Atividade especial: Pintura e desenho
                   </Text>
                   <Text style={styles.avisoText}>
-                    🍎 Lanche será fornecido pela igreja
+                    🎁 Lanche será fornecido pela igreja
                   </Text>
                   <Text style={styles.noAvisosText}>
                     * Eventos específicos serão adicionados pelo líder do ministério
@@ -404,6 +242,12 @@ const loadEvents = async () => {
                       <Text style={styles.childDetails}>
                         {child.idade} anos • {child.sexo}
                       </Text>
+                      {child.nomePai && (
+                        <Text style={styles.parentName}>Pai: {child.nomePai}</Text>
+                      )}
+                      {child.nomeMae && (
+                        <Text style={styles.parentName}>Mãe: {child.nomeMae}</Text>
+                      )}
                       {child.temNecessidadesEspeciais && (
                         <Text style={styles.childSpecial}>
                           ⚠️ Necessidades especiais
@@ -411,216 +255,29 @@ const loadEvents = async () => {
                       )}
                       {child.temSeletividadeAlimentar && (
                         <Text style={styles.childSpecial}>
-                          🍎 Seletividade alimentar
+                          🎯 Seletividade alimentar
                         </Text>
                       )}
                     </View>
-                    <View style={styles.childActions}>
-                      <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={() => openEditModal(child)}
-                      >
-                        <Ionicons name="pencil" size={16} color="#B8986A" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.actionButton, styles.deleteButton]}
-                        onPress={() => deleteChild(child)}
-                      >
-                        <Ionicons name="trash" size={16} color="#ff4444" />
-                      </TouchableOpacity>
+                    <View style={styles.statusIndicator}>
+                      <Ionicons name="checkmark-circle" size={20} color="#50C878" />
                     </View>
                   </View>
                 ))
               ) : (
-                <Text style={styles.noChildrenText}>
-                  Nenhum filho cadastrado ainda.
-                </Text>
+                <View style={styles.noChildrenContainer}>
+                  <Text style={styles.noChildrenText}>
+                    Nenhum filho cadastrado ainda.
+                  </Text>
+                  <Text style={styles.noChildrenSubText}>
+                    Entre em contato com o líder do ministério Kids para fazer o cadastro.
+                  </Text>
+                </View>
               )}
             </View>
           )}
         </TouchableOpacity>
       </ScrollView>
-
-      {/* Modal de Cadastro/Edição */}
-      <Modal
-        visible={modalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => {
-          setModalVisible(false);
-          resetForm();
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  {editMode ? "Editar Filho" : "Cadastrar Filho"}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setModalVisible(false);
-                    resetForm();
-                  }}
-                >
-                  <Ionicons name="close" size={24} color="#666" />
-                </TouchableOpacity>
-              </View>
-
-              {/* Nome */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Nome da Criança: *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Digite o nome da criança"
-                  value={childForm.nome}
-                  onChangeText={(text) => setChildForm({ ...childForm, nome: text })}
-                />
-              </View>
-
-              {/* Idade */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Idade: *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Digite a idade"
-                  value={childForm.idade}
-                  onChangeText={(text) => setChildForm({ ...childForm, idade: text })}
-                  keyboardType="numeric"
-                />
-              </View>
-
-              {/* Sexo */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Sexo: *</Text>
-                <View style={styles.radioGroup}>
-                  <TouchableOpacity
-                    style={styles.radioOption}
-                    onPress={() => setChildForm({ ...childForm, sexo: "Masculino" })}
-                  >
-                    <View style={[
-                      styles.radio,
-                      childForm.sexo === "Masculino" && styles.radioSelected
-                    ]} />
-                    <Text style={styles.radioLabel}>Masculino</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={styles.radioOption}
-                    onPress={() => setChildForm({ ...childForm, sexo: "Feminino" })}
-                  >
-                    <View style={[
-                      styles.radio,
-                      childForm.sexo === "Feminino" && styles.radioSelected
-                    ]} />
-                    <Text style={styles.radioLabel}>Feminino</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Necessidades Especiais */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Tem Necessidades Especiais?</Text>
-                <View style={styles.checkboxRow}>
-                  <CheckBox
-                    checked={childForm.temNecessidadesEspeciais}
-                    onPress={() => setChildForm({
-                      ...childForm,
-                      temNecessidadesEspeciais: !childForm.temNecessidadesEspeciais,
-                      necessidadesEspeciais: !childForm.temNecessidadesEspeciais ? "" : childForm.necessidadesEspeciais
-                    })}
-                    label="Sim"
-                  />
-                  <CheckBox
-                    checked={!childForm.temNecessidadesEspeciais}
-                    onPress={() => setChildForm({
-                      ...childForm,
-                      temNecessidadesEspeciais: false,
-                      necessidadesEspeciais: ""
-                    })}
-                    label="Não"
-                  />
-                </View>
-                
-                {childForm.temNecessidadesEspeciais && (
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    placeholder="Conte sobre as necessidades do seu filho"
-                    value={childForm.necessidadesEspeciais}
-                    onChangeText={(text) => setChildForm({ ...childForm, necessidadesEspeciais: text })}
-                    multiline
-                    numberOfLines={3}
-                  />
-                )}
-              </View>
-
-              {/* Seletividade Alimentar */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Tem alguma Seletividade Alimentar?</Text>
-                <View style={styles.checkboxRow}>
-                  <CheckBox
-                    checked={childForm.temSeletividadeAlimentar}
-                    onPress={() => setChildForm({
-                      ...childForm,
-                      temSeletividadeAlimentar: !childForm.temSeletividadeAlimentar,
-                      seletividadeAlimentar: !childForm.temSeletividadeAlimentar ? "" : childForm.seletividadeAlimentar
-                    })}
-                    label="Sim"
-                  />
-                  <CheckBox
-                    checked={!childForm.temSeletividadeAlimentar}
-                    onPress={() => setChildForm({
-                      ...childForm,
-                      temSeletividadeAlimentar: false,
-                      seletividadeAlimentar: ""
-                    })}
-                    label="Não"
-                  />
-                </View>
-                
-                {childForm.temSeletividadeAlimentar && (
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    placeholder="Conte sobre a seletividade alimentar"
-                    value={childForm.seletividadeAlimentar}
-                    onChangeText={(text) => setChildForm({ ...childForm, seletividadeAlimentar: text })}
-                    multiline
-                    numberOfLines={3}
-                  />
-                )}
-              </View>
-
-              {/* Botões */}
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.cancelButton]}
-                  onPress={() => {
-                    setModalVisible(false);
-                    resetForm();
-                  }}
-                >
-                  <Text style={styles.cancelButtonText}>Cancelar</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.saveButton]}
-                  onPress={saveChild}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={styles.saveButtonText}>
-                      {editMode ? "Atualizar" : "Salvar"}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -646,26 +303,30 @@ const styles = StyleSheet.create({
     color: "#333",
     marginLeft: 15,
   },
-  addButton: {
-    backgroundColor: "#B8986A",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 15,
-    paddingHorizontal: 20,
+  infoCard: {
+    backgroundColor: "#e3f2fd",
     borderRadius: 12,
+    padding: 16,
     marginBottom: 20,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
+    flexDirection: "row",
+    alignItems: "flex-start",
+    borderLeftWidth: 4,
+    borderLeftColor: "#4A90E2",
   },
-  addButtonText: {
-    color: "#fff",
+  infoContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  infoTitle: {
     fontSize: 16,
     fontWeight: "600",
-    marginLeft: 8,
+    color: "#1976d2",
+    marginBottom: 4,
+  },
+  infoText: {
+    fontSize: 14,
+    color: "#1565c0",
+    lineHeight: 20,
   },
   expandableCard: {
     backgroundColor: "#fff",
@@ -728,153 +389,34 @@ const styles = StyleSheet.create({
     color: "#666",
     marginTop: 2,
   },
+  parentName: {
+    fontSize: 12,
+    color: "#999",
+    marginTop: 2,
+  },
   childSpecial: {
     fontSize: 12,
     color: "#B8986A",
     marginTop: 2,
   },
-  childActions: {
-    flexDirection: "row",
-    gap: 8,
+  statusIndicator: {
+    padding: 5,
   },
-  actionButton: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: "#f8f8f8",
-  },
-  deleteButton: {
-    backgroundColor: "#ffe6e6",
+  noChildrenContainer: {
+    alignItems: "center",
+    paddingVertical: 20,
   },
   noChildrenText: {
     textAlign: "center",
     color: "#999",
     fontSize: 14,
-    paddingVertical: 20,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContent: {
-    backgroundColor: "#fff",
-    borderRadius: 15,
-    width: "90%",
-    maxHeight: "90%",
-    padding: 20,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
     marginBottom: 8,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    backgroundColor: "#fff",
-  },
-  textArea: {
-    height: 80,
-    textAlignVertical: "top",
-  },
-  radioGroup: {
-    flexDirection: "row",
-    gap: 20,
-  },
-  radioOption: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  radio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#ddd",
-    marginRight: 8,
-  },
-  radioSelected: {
-    borderColor: "#B8986A",
-    backgroundColor: "#B8986A",
-  },
-  radioLabel: {
-    fontSize: 14,
-    color: "#333",
-  },
-  checkboxRow: {
-    flexDirection: "row",
-    gap: 20,
-    marginBottom: 10,
-  },
-  checkboxContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: "#ddd",
-    marginRight: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkboxChecked: {
-    backgroundColor: "#B8986A",
-    borderColor: "#B8986A",
-  },
-  checkboxLabel: {
-    fontSize: 14,
-    color: "#333",
-  },
-  modalButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 10,
-    marginTop: 20,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  cancelButton: {
-    backgroundColor: "#f0f0f0",
-  },
-  saveButton: {
-    backgroundColor: "#B8986A",
-  },
-  cancelButtonText: {
-    color: "#666",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  saveButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
+  noChildrenSubText: {
+    textAlign: "center",
+    color: "#bbb",
+    fontSize: 12,
+    fontStyle: "italic",
   },
   eventItem: {
     backgroundColor: "#f8f9fa",
