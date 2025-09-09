@@ -1,4 +1,5 @@
 // NewEvent.js
+// NewEvent.js
 import React, { useState } from "react";
 import {
   View,
@@ -14,7 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, doc, setDoc } from "firebase/firestore";
 import { db } from "../../Firebase/FirebaseConfig";
 
 export default function NewEvent({ navigation }) {
@@ -56,6 +57,26 @@ export default function NewEvent({ navigation }) {
     setHorarioEvento(currentTime);
   };
 
+  // Função para criar a estrutura inicial de escalas
+  const criarEstruturaEscalas = async (eventoId) => {
+    try {
+      // Criar documento placeholder para a subcoleção "escalas"
+      // Isso garante que a subcoleção exista e possa ser acessada
+      const escalasPlaceholderRef = doc(db, "churchBasico", "sistema", "eventos", eventoId, "escalas", "_placeholder");
+      
+      await setDoc(escalasPlaceholderRef, {
+        info: "Estrutura criada para receber escalas dos ministérios",
+        criadoEm: new Date().toISOString(),
+        ativo: true
+      });
+
+      console.log("Estrutura de escalas criada com sucesso para o evento:", eventoId);
+    } catch (error) {
+      console.log("Erro ao criar estrutura de escalas:", error);
+      // Não vamos interromper o processo por isso, apenas registrar o erro
+    }
+  };
+
   // Função para criar evento
   const criarEvento = async () => {
     if (!nomeEvento.trim()) {
@@ -74,15 +95,25 @@ export default function NewEvent({ navigation }) {
         dataCompleta: dataEvento.toISOString(),
         horarioCompleto: horarioEvento.toISOString(),
         criadoEm: new Date().toISOString(),
-        ativo: true
+        ativo: true,
+        // Campos para controle de escalas dos ministérios
+        escalaComunicacao: null,
+        escalaLouvor: null,
+        escalaRecepcao: null,
+        escalaInfantil: null,
+        // Total de escalas criadas
+        totalEscalas: 0
       };
 
-      // Salvar no Firebase na coleção "eventos" no mesmo nível de "ministerios", "users", etc.
-      await addDoc(collection(db, "churchBasico", "sistema", "eventos"), novoEvento);
+      // Salvar o evento no Firebase
+      const eventoRef = await addDoc(collection(db, "churchBasico", "sistema", "eventos"), novoEvento);
+      
+      // Criar a estrutura de escalas para este evento
+      await criarEstruturaEscalas(eventoRef.id);
 
       Alert.alert(
         "Sucesso", 
-        "Evento criado com sucesso!",
+        "Evento criado com sucesso! A estrutura para escalas foi preparada automaticamente.",
         [
           {
             text: "OK",
@@ -166,6 +197,14 @@ export default function NewEvent({ navigation }) {
                 {formatarHorario(horarioEvento)}
               </Text>
             </TouchableOpacity>
+          </View>
+
+          {/* Informação sobre escalas */}
+          <View style={styles.infoContainer}>
+            <Ionicons name="information-circle-outline" size={20} color="#B8986A" />
+            <Text style={styles.infoText}>
+              Ao criar este evento, a estrutura para receber escalas dos ministérios será criada automaticamente.
+            </Text>
           </View>
 
           {/* Botão Criar Evento */}
@@ -276,6 +315,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#333",
     marginLeft: 10,
+  },
+  infoContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#f8f9fa",
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 25,
+    borderLeftWidth: 4,
+    borderLeftColor: "#B8986A",
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#666",
+    marginLeft: 10,
+    lineHeight: 20,
   },
   createButton: {
     backgroundColor: "#B8986A",
