@@ -677,7 +677,7 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
       keyExtractor={(item) => `${item.eventId}_${item.id}`}
       ListHeaderComponent={() => (
         <View style={styles.scalesHeader}>
-          <Text style={styles.tabTitle}>Escalas da Comunicação</Text>
+          <Text style={styles.tabTitle}>Escalas:</Text>
           <TouchableOpacity style={styles.createScaleButton} onPress={openCreateScaleModal}>
             <Ionicons name="add-circle" size={20} color="#fff" />
             <Text style={styles.createScaleButtonText}>Criar Escala</Text>
