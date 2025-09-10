@@ -1,4 +1,4 @@
-// MinisterioLouvorAdmin.js - VERSÃO COMPLETA COM ABAS
+// MinisterioLouvorAdmin.js - VERSÃO ATUALIZADA COM TODAS AS MELHORIAS
 import React, { useState, useEffect, useContext } from "react";
 import {
   View,
@@ -40,6 +40,8 @@ export default function MinisterioLouvorAdmin({ navigation }) {
   const [searchUsers, setSearchUsers] = useState([]);
   const [userSearchText, setUserSearchText] = useState("");
   const [searchingUsers, setSearchingUsers] = useState(false);
+  // NOVO: Estado para controlar expansão da lista de membros
+  const [membersExpanded, setMembersExpanded] = useState(false);
 
   // Estados das Bandas
   const [bandas, setBandas] = useState([]);
@@ -54,6 +56,10 @@ export default function MinisterioLouvorAdmin({ navigation }) {
 
   // Estados dos Eventos
   const [events, setEvents] = useState([]);
+  
+  // Estados para expansão de escalas nos eventos
+  const [expandedEvents, setExpandedEvents] = useState({});
+  const [eventScales, setEventScales] = useState({});
 
   // Estados das Escalas
   const [scales, setScales] = useState([]);
@@ -126,7 +132,7 @@ export default function MinisterioLouvorAdmin({ navigation }) {
     }
   };
 
-  // Carregar eventos
+  // Carregar eventos criados pelo AdminMaster
   const loadEvents = async () => {
     try {
       const eventsRef = collection(db, "churchBasico", "sistema", "eventos");
@@ -144,32 +150,104 @@ export default function MinisterioLouvorAdmin({ navigation }) {
     }
   };
 
-  // Carregar escalas existentes
+  // NOVA FUNÇÃO - Carregar todas as escalas de todos os ministérios para um evento
+  const loadEventScales = async (eventId) => {
+    try {
+      const scalesData = {
+        comunicacao: [],
+        louvor: []
+      };
+
+      const scalesRef = collection(db, "churchBasico", "sistema", "eventos", eventId, "escalas");
+      const querySnapshot = await getDocs(scalesRef);
+      
+      querySnapshot.forEach((doc) => {
+        const scaleData = doc.data();
+        
+        // Verificar se é placeholder
+        if (doc.id === "_placeholder") return;
+        
+        // Classificar por ministério
+        if (scaleData.ministerio === "comunicacao") {
+          scalesData.comunicacao.push({
+            id: doc.id,
+            ...scaleData
+          });
+        } else if (scaleData.ministerio === "louvor") {
+          scalesData.louvor.push({
+            id: doc.id,
+            ...scaleData
+          });
+        }
+      });
+
+      setEventScales(prev => ({
+        ...prev,
+        [eventId]: scalesData
+      }));
+
+    } catch (error) {
+      console.log(`Erro ao carregar escalas do evento ${eventId}:`, error);
+    }
+  };
+
+  // FUNÇÃO para expandir/recolher evento
+  const toggleEventExpansion = async (eventId) => {
+    const isExpanded = expandedEvents[eventId];
+    
+    setExpandedEvents(prev => ({
+      ...prev,
+      [eventId]: !isExpanded
+    }));
+
+    // Se está expandindo e ainda não carregou as escalas, carregar
+    if (!isExpanded && !eventScales[eventId]) {
+      await loadEventScales(eventId);
+    }
+  };
+
+  // FUNÇÃO ATUALIZADA - Carregar escalas existentes
   const loadScales = async () => {
     try {
       const scalesData = [];
+      
       for (const event of events) {
         try {
-          const scaleDoc = await getDocs(collection(db, "churchBasico", "sistema", "eventos", event.id, "escalas"));
+          // Buscar na coleção escalas do evento
+          const scalesRef = collection(db, "churchBasico", "sistema", "eventos", event.id, "escalas");
+          const querySnapshot = await getDocs(scalesRef);
           
-          scaleDoc.forEach((doc) => {
-            if (doc.data().ministerio === "louvor") {
+          querySnapshot.forEach((doc) => {
+            const scaleData = doc.data();
+            
+            // Verificar se é escala de louvor
+            if (scaleData.ministerio === "louvor") {
               scalesData.push({
                 id: doc.id,
                 eventId: event.id,
                 eventName: event.nome,
                 eventDate: event.data,
                 eventTime: event.horario,
-                ...doc.data()
+                ...scaleData
               });
             }
           });
+          
         } catch (error) {
           console.log(`Erro ao carregar escala do evento ${event.id}:`, error);
         }
       }
       
+      // Ordenar por data do evento (mais recentes primeiro)
+      scalesData.sort((a, b) => {
+        const dateA = new Date(a.eventDate.split('/').reverse().join('-'));
+        const dateB = new Date(b.eventDate.split('/').reverse().join('-'));
+        return dateB - dateA;
+      });
+      
       setScales(scalesData);
+      console.log(`Escalas de Louvor carregadas: ${scalesData.length}`);
+      
     } catch (error) {
       console.log("Erro ao carregar escalas:", error);
     }
@@ -405,7 +483,7 @@ export default function MinisterioLouvorAdmin({ navigation }) {
     );
   };
 
-  // Funções das Escalas
+  // Reset funções
   const resetScaleForm = () => {
     setScaleForm({ observations: "" });
     setEditingScale(null);
@@ -417,6 +495,7 @@ export default function MinisterioLouvorAdmin({ navigation }) {
     setSelectedBanda(null);
   };
 
+  // Funções das Escalas
   const openCreateScaleModal = () => {
     setEventSelectionModalVisible(true);
   };
@@ -463,7 +542,7 @@ export default function MinisterioLouvorAdmin({ navigation }) {
     try {
       setLoading(true);
 
-      // Gerar ID único para a escala (permitir múltiplas bandas por evento)
+      // NOVA LÓGICA: Gerar ID único para permitir múltiplas bandas por evento
       const scaleId = editingScale ? editingScale.id : `louvor_${selectedBanda.id}_${Date.now()}`;
 
       const scaleData = {
@@ -535,8 +614,13 @@ export default function MinisterioLouvorAdmin({ navigation }) {
               const currentEvent = events.find(e => e.id === scale.eventId);
               const newTotalEscalas = Math.max(0, (currentEvent?.totalEscalas || 1) - 1);
 
+              // Verificar se ainda existem escalas de louvor
+              const remainingLouvorScales = scales.filter(s => 
+                s.eventId === scale.eventId && s.id !== scale.id
+              );
+
               await updateDoc(eventRef, {
-                escalaLouvor: newTotalEscalas > 0 ? "OK" : null,
+                escalaLouvor: remainingLouvorScales.length > 0 ? "OK" : null,
                 totalEscalas: newTotalEscalas,
                 updatedAt: serverTimestamp()
               });
@@ -564,58 +648,87 @@ export default function MinisterioLouvorAdmin({ navigation }) {
     return { total: bandas.length };
   };
 
+  // RENDERIZAÇÃO ATUALIZADA - Membros com card expansível
   const renderMembers = () => {
     const stats = getMembersStats();
+    const membersToShow = membersExpanded ? members : members.slice(0, 3);
 
     return (
-      <View style={styles.tabContent}>
-        <Text style={styles.tabTitle}>Membros do Ministério</Text>
+      <ScrollView style={styles.container}>
+        <View style={styles.membersHeader}>
+          <Text style={styles.tabTitle}>Membros do Ministério</Text>
 
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Ionicons name="people" size={24} color="#B8986A" />
-            <Text style={styles.statNumber}>{stats.total}</Text>
-            <Text style={styles.statLabel}>Total de Membros</Text>
+          <View style={styles.statsContainer}>
+            <View style={styles.statCard}>
+              <Ionicons name="people" size={24} color="#B8986A" />
+              <Text style={styles.statNumber}>{stats.total}</Text>
+              <Text style={styles.statLabel}>Total de Membros</Text>
+            </View>
           </View>
+
+          <TouchableOpacity style={styles.addMemberButton} onPress={openAddMemberModal}>
+            <Ionicons name="person-add" size={20} color="#fff" />
+            <Text style={styles.addMemberButtonText}>Adicionar Membro</Text>
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.addMemberButton} onPress={openAddMemberModal}>
-          <Ionicons name="person-add" size={20} color="#fff" />
-          <Text style={styles.addMemberButtonText}>Adicionar Membro</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.sectionTitle}>Lista de Membros</Text>
-
-        <FlatList
-          data={members}
-          keyExtractor={(item) => item.id}
-          ListEmptyComponent={() => (
-            <Text style={styles.emptyText}>Nenhum membro cadastrado ainda</Text>
-          )}
-          renderItem={({ item }) => (
-            <View style={styles.memberItem}>
-              <View style={styles.memberInfo}>
-                <Text style={styles.memberName}>{item.nome}</Text>
-                {item.telefone && (
-                  <Text style={styles.memberContact}>📞 {item.telefone}</Text>
+        {/* CARD EXPANSÍVEL DE MEMBROS */}
+        <View style={styles.membersExpandableCard}>
+          <View style={styles.membersCardHeader}>
+            <Text style={styles.membersCardTitle}>
+              Lista de Membros ({members.length})
+            </Text>
+            
+            {members.length > 3 && (
+              <TouchableOpacity 
+                style={styles.membersExpandButton}
+                onPress={() => setMembersExpanded(!membersExpanded)}
+              >
+                <Text style={styles.membersExpandText}>
+                  {membersExpanded ? "Mostrar menos" : `Ver todos (${members.length})`}
+                </Text>
+                <Ionicons 
+                  name={membersExpanded ? "chevron-up" : "chevron-down"} 
+                  size={16} 
+                  color="#B8986A" 
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          <View style={styles.membersExpandedContent}>
+            {membersToShow.length > 0 ? (
+              <FlatList
+                data={membersToShow}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={false}
+                renderItem={({ item }) => (
+                  <View style={styles.memberCard}>
+                    <View style={styles.memberInfo}>
+                      <Text style={styles.memberName}>{item.nome}</Text>
+                      {item.telefone && (
+                        <Text style={styles.memberContact}>📞 {item.telefone}</Text>
+                      )}
+                      {item.email && (
+                        <Text style={styles.memberContact}>📧 {item.email}</Text>
+                      )}
+                    </View>
+                    <TouchableOpacity
+                      style={styles.deleteMemberButton}
+                      onPress={() => deleteMember(item)}
+                    >
+                      <Ionicons name="trash" size={18} color="#ff4444" />
+                    </TouchableOpacity>
+                  </View>
                 )}
-                {item.email && (
-                  <Text style={styles.memberContact}>📧 {item.email}</Text>
-                )}
-              </View>
-              <View style={styles.memberActions}>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.deleteButton]}
-                  onPress={() => deleteMember(item)}
-                >
-                  <Ionicons name="trash" size={16} color="#ff4444" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-          showsVerticalScrollIndicator={false}
-        />
-      </View>
+                showsVerticalScrollIndicator={false}
+              />
+            ) : (
+              <Text style={styles.emptyText}>Nenhum membro cadastrado ainda</Text>
+            )}
+          </View>
+        </View>
+      </ScrollView>
     );
   };
 
@@ -677,6 +790,7 @@ export default function MinisterioLouvorAdmin({ navigation }) {
     );
   };
 
+  // RENDERIZAÇÃO ATUALIZADA - Eventos com escalas expansíveis
   const renderEvents = () => (
     <FlatList
       style={styles.tabContent}
@@ -693,10 +807,38 @@ export default function MinisterioLouvorAdmin({ navigation }) {
       renderItem={({ item }) => (
         <View style={styles.eventItem}>
           <View style={styles.eventContent}>
-            <Text style={styles.eventTitle}>{item.nome}</Text>
-            <View style={styles.eventDetails}>
-              <Text style={styles.eventDetail}>📅 {item.data}</Text>
-              <Text style={styles.eventDetail}>⏰ {item.horario}</Text>
+            <View style={styles.eventMainInfo}>
+              <View style={styles.eventBasicInfo}>
+                <Text style={styles.eventTitle}>{item.nome}</Text>
+                <View style={styles.eventDetails}>
+                  <Text style={styles.eventDetail}>📅 {item.data}</Text>
+                  <Text style={styles.eventDetail}>⏰ {item.horario}</Text>
+                </View>
+              </View>
+              
+              <TouchableOpacity 
+                style={styles.expandButton}
+                onPress={() => toggleEventExpansion(item.id)}
+              >
+                <Text style={styles.expandButtonText}>
+                  {expandedEvents[item.id] ? "Ocultar detalhes" : "Ver detalhes"}
+                </Text>
+                <Ionicons 
+                  name={expandedEvents[item.id] ? "chevron-up" : "chevron-down"} 
+                  size={16} 
+                  color="#B8986A" 
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* Status das Escalas */}
+            <View style={styles.scalesStatusContainer}>
+              {item.escalaComunicacao === "OK" && (
+                <View style={styles.scaleStatus}>
+                  <Ionicons name="checkmark-circle" size={16} color="#50C878" />
+                  <Text style={styles.scaleStatusText}>Escala Comunicação OK</Text>
+                </View>
+              )}
               {item.escalaLouvor === "OK" && (
                 <View style={styles.scaleStatus}>
                   <Ionicons name="checkmark-circle" size={16} color="#50C878" />
@@ -707,6 +849,67 @@ export default function MinisterioLouvorAdmin({ navigation }) {
                 <Text style={styles.totalScalesText}>Total de escalas: {item.totalEscalas}</Text>
               )}
             </View>
+
+            {/* Escalas Expandidas */}
+            {expandedEvents[item.id] && eventScales[item.id] && (
+              <View style={styles.expandedScalesContainer}>
+                
+                {/* Escalas de Comunicação */}
+                {eventScales[item.id].comunicacao.length > 0 && (
+                  <View style={styles.ministryScalesSection}>
+                    <Text style={styles.ministryScalesTitle}>📢 Comunicação</Text>
+                    {eventScales[item.id].comunicacao.map((scale) => (
+                      <View key={scale.id} style={styles.scaleDetailItem}>
+                        <View style={styles.scaleRoles}>
+                          {scale.responsavelSom && (
+                            <Text style={styles.roleDetailText}>Som: {scale.responsavelSom.nome}</Text>
+                          )}
+                          {scale.responsavelIluminacao && (
+                            <Text style={styles.roleDetailText}>Iluminação: {scale.responsavelIluminacao.nome}</Text>
+                          )}
+                          {scale.operadorSlides && (
+                            <Text style={styles.roleDetailText}>Slides: {scale.operadorSlides.nome}</Text>
+                          )}
+                          {scale.cinegrafista && (
+                            <Text style={styles.roleDetailText}>Cinegrafista: {scale.cinegrafista.nome}</Text>
+                          )}
+                          {scale.fotografo && (
+                            <Text style={styles.roleDetailText}>Fotógrafo: {scale.fotografo.nome}</Text>
+                          )}
+                          {scale.streamingOperator && (
+                            <Text style={styles.roleDetailText}>Streaming: {scale.streamingOperator.nome}</Text>
+                          )}
+                        </View>
+                        {scale.observations && (
+                          <Text style={styles.observationsDetailText}>📝 {scale.observations}</Text>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Escalas de Louvor */}
+                {eventScales[item.id].louvor.length > 0 && (
+                  <View style={styles.ministryScalesSection}>
+                    <Text style={styles.ministryScalesTitle}>🎵 Louvor</Text>
+                    {eventScales[item.id].louvor.map((scale) => (
+                      <View key={scale.id} style={styles.scaleDetailItem}>
+                        <Text style={styles.roleDetailText}>Banda: {scale.banda?.nome || "N/A"}</Text>
+                        <Text style={styles.roleDetailText}>Responsável: {scale.banda?.responsavel?.nome || "N/A"}</Text>
+                        {scale.observations && (
+                          <Text style={styles.observationsDetailText}>📝 {scale.observations}</Text>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Caso não tenha escalas */}
+                {eventScales[item.id].comunicacao.length === 0 && eventScales[item.id].louvor.length === 0 && (
+                  <Text style={styles.noScalesText}>Nenhuma escala cadastrada para este evento</Text>
+                )}
+              </View>
+            )}
           </View>
         </View>
       )}
@@ -714,54 +917,93 @@ export default function MinisterioLouvorAdmin({ navigation }) {
     />
   );
 
+  // RENDERIZAÇÃO ATUALIZADA - Escalas com sistema completo
   const renderScales = () => (
-    <FlatList
-      style={styles.tabContent}
-      data={scales}
-      keyExtractor={(item) => `${item.eventId}_${item.id}`}
-      ListHeaderComponent={() => (
-        <View style={styles.scalesHeader}>
-          <Text style={styles.tabTitle}>Escalas do Louvor</Text>
+    <View style={styles.container}>
+      <View style={styles.scalesHeader}>
+        <Text style={styles.tabTitle}>Escalas do Louvor</Text>
+        <View style={styles.scalesButtonsContainer}>
+          <TouchableOpacity 
+            style={styles.refreshScalesButton} 
+            onPress={() => {
+              setLoading(true);
+              loadScales().finally(() => setLoading(false));
+            }}
+          >
+            <Ionicons name="refresh" size={16} color="#666" />
+            <Text style={styles.refreshScalesButtonText}>Atualizar</Text>
+          </TouchableOpacity>
+          
           <TouchableOpacity style={styles.createScaleButton} onPress={openCreateScaleModal}>
             <Ionicons name="add-circle" size={20} color="#fff" />
             <Text style={styles.createScaleButtonText}>Criar Escala</Text>
           </TouchableOpacity>
         </View>
-      )}
-      ListEmptyComponent={() => (
-        <Text style={styles.emptyText}>Nenhuma escala criada ainda</Text>
-      )}
-      renderItem={({ item }) => (
-        <View style={styles.scaleItem}>
-          <View style={styles.scaleContent}>
-            <Text style={styles.scaleTitle}>{item.eventName}</Text>
-            <Text style={styles.scaleDate}>{item.eventDate} - {item.eventTime}</Text>
-            <View style={styles.scaleRoles}>
-              <Text style={styles.roleText}>🎵 Banda: {item.banda.nome}</Text>
-              <Text style={styles.roleText}>👤 Responsável: {item.banda.responsavel.nome}</Text>
+      </View>
+
+      <FlatList
+        data={scales}
+        keyExtractor={(item) => `${item.eventId}_${item.id}`}
+        contentContainerStyle={styles.scalesList}
+        ListEmptyComponent={() => (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Nenhuma escala criada ainda</Text>
+            <Text style={styles.emptySubText}>Crie escalas para organizar os eventos do ministério</Text>
+            
+            <TouchableOpacity 
+              style={styles.refreshEmptyButton} 
+              onPress={() => {
+                console.log("Recarregando escalas do Louvor...");
+                setLoading(true);
+                loadScales().finally(() => setLoading(false));
+              }}
+            >
+              <Ionicons name="refresh" size={16} color="#B8986A" />
+              <Text style={styles.refreshEmptyButtonText}>Recarregar escalas</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        renderItem={({ item }) => (
+          <View style={styles.scaleCard}>
+            <View style={styles.scaleContent}>
+              <View style={styles.scaleHeader}>
+                <Text style={styles.scaleTitle}>{item.eventName}</Text>
+                <Text style={styles.scaleDate}>{item.eventDate} - {item.eventTime}</Text>
+              </View>
+              
+              <View style={styles.scaleRoles}>
+                <Text style={styles.roleText}>🎵 Banda: {item.banda.nome}</Text>
+                <Text style={styles.roleText}>👤 Responsável: {item.banda.responsavel.nome}</Text>
+              </View>
+
+              {item.observations && (
+                <View style={styles.observationsContainer}>
+                  <Text style={styles.observationsText}>📝 {item.observations}</Text>
+                </View>
+              )}
             </View>
-            {item.observations && (
-              <Text style={styles.observationsText}>📝 {item.observations}</Text>
-            )}
+            
+            <View style={styles.scaleActions}>
+              <TouchableOpacity
+                style={styles.editScaleButton}
+                onPress={() => openEditScaleModal(item)}
+              >
+                <Ionicons name="pencil" size={18} color="#B8986A" />
+                <Text style={styles.actionButtonText}>Editar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deleteScaleButton}
+                onPress={() => deleteScale(item)}
+              >
+                <Ionicons name="trash" size={18} color="#ff4444" />
+                <Text style={styles.actionButtonText}>Excluir</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <View style={styles.scaleActions}>
-            <TouchableOpacity
-              style={styles.editScaleButton}
-              onPress={() => openEditScaleModal(item)}
-            >
-              <Ionicons name="pencil" size={16} color="#B8986A" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.deleteScaleButton}
-              onPress={() => deleteScale(item)}
-            >
-              <Ionicons name="trash" size={16} color="#ff4444" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-      showsVerticalScrollIndicator={false}
-    />
+        )}
+        showsVerticalScrollIndicator={false}
+      />
+    </View>
   );
 
   return (
@@ -1091,7 +1333,7 @@ export default function MinisterioLouvorAdmin({ navigation }) {
                     {item.escalaLouvor === "OK" && (
                       <View style={styles.eventHasScale}>
                         <Ionicons name="checkmark-circle" size={16} color="#FFD700" />
-                        <Text style={styles.eventHasScaleText}>Já tem escala</Text>
+                        <Text style={styles.eventHasScaleText}>Já tem escala(s)</Text>
                       </View>
                     )}
                   </View>
@@ -1234,9 +1476,257 @@ export default function MinisterioLouvorAdmin({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  // ESTILOS ATUALIZADOS COM AS MELHORIAS DA COMUNICAÇÃO
   container: {
     flex: 1,
     backgroundColor: "#f5f5f5",
+  },
+  membersHeader: {
+    padding: 20,
+    backgroundColor: "#f5f5f5",
+  },
+  membersExpandableCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  membersCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  membersCardTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+  },
+  membersExpandButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  membersExpandText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#B8986A",
+  },
+  membersExpandedContent: {
+    padding: 16,
+  },
+  memberCard: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  deleteMemberButton: {
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: "#ffe6e6",
+  },
+  expandButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    backgroundColor: "#f8f9fa",
+    gap: 6,
+  },
+  expandButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#B8986A",
+  },
+  scalesHeader: {
+    padding: 20,
+    backgroundColor: "#f5f5f5",
+    alignItems: "center",
+    gap: 15,
+  },
+  scalesButtonsContainer: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+  refreshScalesButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f0f0f0",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    gap: 4,
+  },
+  refreshScalesButtonText: {
+    color: "#666",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  refreshEmptyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8f9fa",
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 6,
+    marginTop: 15,
+  },
+  refreshEmptyButtonText: {
+    color: "#B8986A",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  scalesList: {
+    padding: 20,
+  },
+  scaleCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 15,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  scaleHeader: {
+    marginBottom: 12,
+  },
+  observationsContainer: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+  },
+  observationsText: {
+    fontSize: 12,
+    color: "#666",
+    fontStyle: "italic",
+    lineHeight: 16,
+  },
+  scaleActions: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginTop: 15,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+    gap: 10,
+  },
+  editScaleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: "#f0f8ff",
+    gap: 5,
+    flex: 1,
+    justifyContent: "center",
+  },
+  deleteScaleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: "#ffe6e6",
+    gap: 5,
+    flex: 1,
+    justifyContent: "center",
+  },
+  actionButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#666",
+  },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+  },
+  emptySubText: {
+    textAlign: "center",
+    color: "#aaa",
+    fontSize: 12,
+    marginTop: 5,
+    maxWidth: 250,
+  },
+  eventMainInfo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  eventBasicInfo: {
+    flex: 1,
+  },
+  scalesStatusContainer: {
+    gap: 5,
+    marginBottom: 10,
+  },
+  expandedScalesContainer: {
+    backgroundColor: "#f8f9fa",
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: "#B8986A",
+  },
+  ministryScalesSection: {
+    marginBottom: 15,
+  },
+  ministryScalesTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 8,
+  },
+  scaleDetailItem: {
+    backgroundColor: "#fff",
+    borderRadius: 6,
+    padding: 10,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: "#B8986A",
+  },
+  roleDetailText: {
+    fontSize: 12,
+    color: "#555",
+    marginBottom: 2,
+  },
+  observationsDetailText: {
+    fontSize: 11,
+    color: "#777",
+    marginTop: 5,
+    fontStyle: "italic",
+  },
+  noScalesText: {
+    textAlign: "center",
+    color: "#999",
+    fontSize: 12,
+    fontStyle: "italic",
+    paddingVertical: 10,
   },
   header: {
     flexDirection: "row",
@@ -1431,12 +1921,6 @@ const styles = StyleSheet.create({
     marginTop: 3,
     fontStyle: "italic",
   },
-  scalesHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
   createScaleButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -1450,16 +1934,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "600",
-  },
-  scaleItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    padding: 15,
-    marginBottom: 10,
-    elevation: 2,
   },
   scaleContent: {
     flex: 1,
@@ -1481,26 +1955,6 @@ const styles = StyleSheet.create({
   roleText: {
     fontSize: 12,
     color: "#555",
-  },
-  observationsText: {
-    fontSize: 12,
-    color: "#777",
-    marginTop: 5,
-    fontStyle: "italic",
-  },
-  scaleActions: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  editScaleButton: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: "#f0f8ff",
-  },
-  deleteScaleButton: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: "#ffe6e6",
   },
   emptyText: {
     textAlign: "center",
@@ -1744,6 +2198,125 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  // NOVOS ESTILOS PARA MÚLTIPLAS BANDAS
+  selectedBandasContainer: {
+    gap: 10,
+    marginBottom: 15,
+  },
+  selectedBandaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#f8f9fa",
+    borderRadius: 8,
+    padding: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: "#B8986A",
+  },
+  selectedBandaInfo: {
+    flex: 1,
+  },
+  selectedBandaName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 4,
+  },
+  selectedBandaResponsavel: {
+    fontSize: 12,
+    color: "#666",
+  },
+  removeBandaButton: {
+    padding: 4,
+  },
+  noBandasText: {
+    textAlign: "center",
+    color: "#999",
+    fontSize: 14,
+    paddingVertical: 20,
+    fontStyle: "italic",
+  },
+  addBandaButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+    borderWidth: 2,
+    borderColor: "#B8986A",
+    borderStyle: "dashed",
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    gap: 8,
+    marginTop: 10,
+  },
+  addBandaButtonText: {
+    color: "#B8986A",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  // ESTILOS PARA SISTEMA DE BUSCA DE BANDAS
+  bandaSearchInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    backgroundColor: "#fff",
+    marginBottom: 10,
+  },
+  bandaSearchResults: {
+    backgroundColor: "#f8f9fa",
+    borderRadius: 8,
+    maxHeight: 200,
+    marginBottom: 15,
+  },
+  bandaSearchResult: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  bandaSearchInfo: {
+    flex: 1,
+  },
+  bandaSearchName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+  },
+  bandaSearchResponsavel: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 2,
+  },
+  noBandaResults: {
+    textAlign: "center",
+    color: "#999",
+    fontSize: 12,
+    fontStyle: "italic",
+    paddingVertical: 10,
+  },
+  noBandasContainer: {
+    backgroundColor: "#f8f9fa",
+    borderRadius: 8,
+    padding: 20,
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#e9ecef",
+    borderStyle: "dashed",
+  },
+  noBandasSubText: {
+    textAlign: "center",
+    color: "#999",
+    fontSize: 12,
+    marginTop: 5,
+    fontStyle: "italic",
   },
 });
 
