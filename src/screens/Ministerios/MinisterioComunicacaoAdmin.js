@@ -1,5 +1,5 @@
-// MinisterioComunicacaoAdmin.js - VERSÃO FINAL CORRIGIDA
-// MinisterioComunicacaoAdmin.js - VERSÃO FINAL CORRIGIDA
+// MinisterioComunicacaoAdmin.js - VERSÃO CORRIGIDA
+// CORREÇÕES: Lista de membros com scroll infinito + Escalas aparecendo corretamente
 import React, { useState, useEffect, useContext } from "react";
 import {
   View,
@@ -41,9 +41,15 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
   const [searchUsers, setSearchUsers] = useState([]);
   const [userSearchText, setUserSearchText] = useState("");
   const [searchingUsers, setSearchingUsers] = useState(false);
+  // NOVO: Estado para controlar expansão da lista de membros
+  const [membersExpanded, setMembersExpanded] = useState(false);
 
   // Estados dos Eventos
   const [events, setEvents] = useState([]);
+  
+  // Estados para expansão de escalas nos eventos
+  const [expandedEvents, setExpandedEvents] = useState({});
+  const [eventScales, setEventScales] = useState({});
 
   // Estados das Escalas
   const [scales, setScales] = useState([]);
@@ -94,7 +100,6 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
         loadMembers(),
         loadEvents(),
       ]);
-      // Carregar escalas depois dos eventos
       await loadScales();
     } catch (error) {
       console.log("Erro ao carregar dados:", error);
@@ -139,35 +144,104 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
     }
   };
 
+  // NOVA FUNÇÃO - Carregar todas as escalas de todos os ministérios para um evento
+  const loadEventScales = async (eventId) => {
+    try {
+      const scalesData = {
+        comunicacao: [],
+        louvor: []
+      };
+
+      const scalesRef = collection(db, "churchBasico", "sistema", "eventos", eventId, "escalas");
+      const querySnapshot = await getDocs(scalesRef);
+      
+      querySnapshot.forEach((doc) => {
+        const scaleData = doc.data();
+        
+        // Verificar se é placeholder
+        if (doc.id === "_placeholder") return;
+        
+        // Classificar por ministério
+        if (scaleData.ministerio === "comunicacao") {
+          scalesData.comunicacao.push({
+            id: doc.id,
+            ...scaleData
+          });
+        } else if (scaleData.ministerio === "louvor") {
+          scalesData.louvor.push({
+            id: doc.id,
+            ...scaleData
+          });
+        }
+      });
+
+      setEventScales(prev => ({
+        ...prev,
+        [eventId]: scalesData
+      }));
+
+    } catch (error) {
+      console.log(`Erro ao carregar escalas do evento ${eventId}:`, error);
+    }
+  };
+
+  // FUNÇÃO para expandir/recolher evento
+  const toggleEventExpansion = async (eventId) => {
+    const isExpanded = expandedEvents[eventId];
+    
+    setExpandedEvents(prev => ({
+      ...prev,
+      [eventId]: !isExpanded
+    }));
+
+    // Se está expandindo e ainda não carregou as escalas, carregar
+    if (!isExpanded && !eventScales[eventId]) {
+      await loadEventScales(eventId);
+    }
+  };
+
   // FUNÇÃO CORRIGIDA - Carregar escalas existentes
   const loadScales = async () => {
     try {
       const scalesData = [];
+      
       for (const event of events) {
         try {
-          const scaleDoc = await getDocs(collection(db, "churchBasico", "sistema", "eventos", event.id, "escalas"));
+          // CORREÇÃO: Buscar na coleção escalas do evento
+          const scalesRef = collection(db, "churchBasico", "sistema", "eventos", event.id, "escalas");
+          const querySnapshot = await getDocs(scalesRef);
           
-          scaleDoc.forEach((doc) => {
-            // CORREÇÃO: Verificar se é uma escala real de comunicação
-            // Ignorar documentos placeholder (_placeholder) e verificar se tem campo ministerio
-            if (doc.id === "comunicacao" && doc.data().ministerio === "comunicacao") {
+          querySnapshot.forEach((doc) => {
+            const scaleData = doc.data();
+            
+            // Verificar se é escala de comunicação
+            if (scaleData.ministerio === "comunicacao") {
               scalesData.push({
                 id: doc.id,
                 eventId: event.id,
                 eventName: event.nome,
                 eventDate: event.data,
                 eventTime: event.horario,
-                ...doc.data()
+                ...scaleData
               });
             }
           });
+          
         } catch (error) {
           console.log(`Erro ao carregar escala do evento ${event.id}:`, error);
         }
       }
       
-      console.log("Escalas carregadas:", scalesData);
+      // Ordenar por data do evento (mais recentes primeiro)
+      scalesData.sort((a, b) => {
+        const dateA = new Date(a.eventDate.split('/').reverse().join('-'));
+        const dateB = new Date(b.eventDate.split('/').reverse().join('-'));
+        return dateB - dateA;
+      });
+      
       setScales(scalesData);
+      console.log(`Escalas carregadas: ${scalesData.length}`);
+      
     } catch (error) {
       console.log("Erro ao carregar escalas:", error);
     }
@@ -283,7 +357,7 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
     );
   };
 
-  // FUNÇÃO CORRIGIDA - Reset apenas dos campos do formulário
+  // Reset funções
   const resetScaleForm = () => {
     setScaleForm({
       responsavelSom: null,
@@ -314,10 +388,8 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
     });
     
     setEditingScale(null);
-    // NÃO resetar selectedEvent aqui
   };
 
-  // NOVA FUNÇÃO - Reset completo (usar apenas ao fechar modais)
   const resetCompletely = () => {
     resetScaleForm();
     setSelectedEvent(null);
@@ -328,13 +400,10 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
     setEventSelectionModalVisible(true);
   };
 
-  // FUNÇÃO CORRIGIDA - selectEventForScale
   const selectEventForScale = (event) => {
-    console.log("SELECIONANDO EVENTO:", event);
     setSelectedEvent(event);
     setEventSelectionModalVisible(false);
-    resetScaleForm(); // Esta função NÃO deve resetar selectedEvent
-    console.log("EVENTO DEFINIDO COMO:", event);
+    resetScaleForm();
     setScaleModalVisible(true);
   };
 
@@ -399,11 +468,8 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
     }));
   };
 
-  // FUNÇÃO CORRIGIDA - saveScale com verificações adicionais
   const saveScale = async () => {
-    // VERIFICAÇÃO CRÍTICA: Garantir que selectedEvent existe
     if (!selectedEvent || !selectedEvent.id) {
-      console.error("ERRO: selectedEvent não está definido:", selectedEvent);
       Alert.alert("Erro", "Evento não selecionado. Feche o modal e tente novamente.");
       return;
     }
@@ -416,10 +482,6 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
     try {
       setLoading(true);
       
-      // Log para debug
-      console.log("Salvando escala com selectedEvent:", selectedEvent);
-      
-      // Função helper para criar objeto do membro com verificação de null
       const createMemberObject = (member) => {
         if (!member) return null;
         return {
@@ -430,11 +492,11 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
       };
       
       const scaleData = {
-        ministerio: "comunicacao", // IMPORTANTE: Identificador do ministério
-        eventId: selectedEvent.id, // ID do evento para referência
-        eventName: selectedEvent.nome, // Nome do evento
-        eventDate: selectedEvent.data, // Data do evento
-        eventTime: selectedEvent.horario, // Horário do evento
+        ministerio: "comunicacao",
+        eventId: selectedEvent.id,
+        eventName: selectedEvent.nome,
+        eventDate: selectedEvent.data,
+        eventTime: selectedEvent.horario,
         responsavelSom: createMemberObject(scaleForm.responsavelSom),
         responsavelIluminacao: createMemberObject(scaleForm.responsavelIluminacao),
         operadorSlides: createMemberObject(scaleForm.operadorSlides),
@@ -449,13 +511,9 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
         isActive: true
       };
 
-      console.log("Salvando escala com dados:", scaleData);
-
-      // Salvar a escala dentro do evento específico
       const scaleRef = doc(db, "churchBasico", "sistema", "eventos", selectedEvent.id, "escalas", "comunicacao");
       await setDoc(scaleRef, scaleData);
       
-      // Atualizar o evento para mostrar que tem escala de comunicação
       const eventRef = doc(db, "churchBasico", "sistema", "eventos", selectedEvent.id);
       const currentEvent = events.find(e => e.id === selectedEvent.id);
       const isNewScale = !editingScale;
@@ -468,14 +526,13 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
       
       Alert.alert("Sucesso", editingScale ? "Escala atualizada com sucesso!" : "Escala da Comunicação criada com sucesso!");
       setScaleModalVisible(false);
-      resetCompletely(); // Usar reset completo apenas aqui
+      resetCompletely();
       
-      // Recarregar dados
       await loadEvents();
       await loadScales();
 
     } catch (error) {
-      console.error("Erro completo ao salvar escala:", error);
+      console.error("Erro ao salvar escala:", error);
       Alert.alert("Erro", `Não foi possível salvar a escala: ${error.message}`);
     } finally {
       setLoading(false);
@@ -495,11 +552,9 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
             try {
               setLoading(true);
               
-              // Deletar da subcoleção
               const scaleRef = doc(db, "churchBasico", "sistema", "eventos", scale.eventId, "escalas", "comunicacao");
               await deleteDoc(scaleRef);
               
-              // Remover marcação do evento e decrementar totalEscalas
               const eventRef = doc(db, "churchBasico", "sistema", "eventos", scale.eventId);
               const currentEvent = events.find(e => e.id === scale.eventId);
               const newTotalEscalas = Math.max(0, (currentEvent?.totalEscalas || 1) - 1);
@@ -578,61 +633,91 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
     );
   };
 
+  // RENDERIZAÇÃO CORRIGIDA - Membros com card expansível
   const renderMembers = () => {
     const stats = getMembersStats();
+    const membersToShow = membersExpanded ? members : members.slice(0, 3);
     
     return (
-      <View style={styles.tabContent}>
-        <Text style={styles.tabTitle}>Membros do Ministério</Text>
-        
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Ionicons name="people" size={24} color="#B8986A" />
-            <Text style={styles.statNumber}>{stats.total}</Text>
-            <Text style={styles.statLabel}>Total de Membros</Text>
+      <ScrollView style={styles.container}>
+        <View style={styles.membersHeader}>
+          <Text style={styles.tabTitle}>Membros do Ministério</Text>
+          
+          <View style={styles.statsContainer}>
+            <View style={styles.statCard}>
+              <Ionicons name="people" size={24} color="#B8986A" />
+              <Text style={styles.statNumber}>{stats.total}</Text>
+              <Text style={styles.statLabel}>Total de Membros</Text>
+            </View>
           </View>
+
+          <TouchableOpacity style={styles.addMemberButton} onPress={openAddMemberModal}>
+            <Ionicons name="person-add" size={20} color="#fff" />
+            <Text style={styles.addMemberButtonText}>Adicionar Membro</Text>
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.addMemberButton} onPress={openAddMemberModal}>
-          <Ionicons name="person-add" size={20} color="#fff" />
-          <Text style={styles.addMemberButtonText}>Adicionar Membro</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.sectionTitle}>Lista de Membros</Text>
-        
-        <FlatList
-          data={members}
-          keyExtractor={(item) => item.id}
-          ListEmptyComponent={() => (
-            <Text style={styles.emptyText}>Nenhum membro cadastrado ainda</Text>
-          )}
-          renderItem={({ item }) => (
-            <View style={styles.memberItem}>
-              <View style={styles.memberInfo}>
-                <Text style={styles.memberName}>{item.nome}</Text>
-                {item.telefone && (
-                  <Text style={styles.memberContact}>📞 {item.telefone}</Text>
+        {/* CARD EXPANSÍVEL DE MEMBROS */}
+        <View style={styles.membersExpandableCard}>
+          <View style={styles.membersCardHeader}>
+            <Text style={styles.membersCardTitle}>
+              Lista de Membros ({members.length})
+            </Text>
+            
+            {members.length > 3 && (
+              <TouchableOpacity 
+                style={styles.membersExpandButton}
+                onPress={() => setMembersExpanded(!membersExpanded)}
+              >
+                <Text style={styles.membersExpandText}>
+                  {membersExpanded ? "Mostrar menos" : `Ver todos (${members.length})`}
+                </Text>
+                <Ionicons 
+                  name={membersExpanded ? "chevron-up" : "chevron-down"} 
+                  size={16} 
+                  color="#B8986A" 
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          <View style={styles.membersExpandedContent}>
+            {membersToShow.length > 0 ? (
+              <FlatList
+                data={membersToShow}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={false}
+                renderItem={({ item }) => (
+                  <View style={styles.memberCard}>
+                    <View style={styles.memberInfo}>
+                      <Text style={styles.memberName}>{item.nome}</Text>
+                      {item.telefone && (
+                        <Text style={styles.memberContact}>📞 {item.telefone}</Text>
+                      )}
+                      {item.email && (
+                        <Text style={styles.memberContact}>📧 {item.email}</Text>
+                      )}
+                    </View>
+                    <TouchableOpacity
+                      style={styles.deleteMemberButton}
+                      onPress={() => deleteMember(item)}
+                    >
+                      <Ionicons name="trash" size={18} color="#ff4444" />
+                    </TouchableOpacity>
+                  </View>
                 )}
-                {item.email && (
-                  <Text style={styles.memberContact}>📧 {item.email}</Text>
-                )}
-              </View>
-              <View style={styles.memberActions}>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.deleteButton]}
-                  onPress={() => deleteMember(item)}
-                >
-                  <Ionicons name="trash" size={16} color="#ff4444" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-          showsVerticalScrollIndicator={false}
-        />
-      </View>
+                showsVerticalScrollIndicator={false}
+              />
+            ) : (
+              <Text style={styles.emptyText}>Nenhum membro cadastrado ainda</Text>
+            )}
+          </View>
+        </View>
+      </ScrollView>
     );
   };
 
+  // FUNÇÃO ATUALIZADA - renderEvents com eventos expansíveis
   const renderEvents = () => (
     <FlatList
       style={styles.tabContent}
@@ -649,20 +734,109 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
       renderItem={({ item }) => (
         <View style={styles.eventItem}>
           <View style={styles.eventContent}>
-            <Text style={styles.eventTitle}>{item.nome}</Text>
-            <View style={styles.eventDetails}>
-              <Text style={styles.eventDetail}>📅 {item.data}</Text>
-              <Text style={styles.eventDetail}>⏰ {item.horario}</Text>
+            <View style={styles.eventMainInfo}>
+              <View style={styles.eventBasicInfo}>
+                <Text style={styles.eventTitle}>{item.nome}</Text>
+                <View style={styles.eventDetails}>
+                  <Text style={styles.eventDetail}>📅 {item.data}</Text>
+                  <Text style={styles.eventDetail}>⏰ {item.horario}</Text>
+                </View>
+              </View>
+              
+              <TouchableOpacity 
+                style={styles.expandButton}
+                onPress={() => toggleEventExpansion(item.id)}
+              >
+                <Text style={styles.expandButtonText}>
+                  {expandedEvents[item.id] ? "Ocultar detalhes" : "Ver detalhes"}
+                </Text>
+                <Ionicons 
+                  name={expandedEvents[item.id] ? "chevron-up" : "chevron-down"} 
+                  size={16} 
+                  color="#B8986A" 
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* Status das Escalas */}
+            <View style={styles.scalesStatusContainer}>
               {item.escalaComunicacao === "OK" && (
                 <View style={styles.scaleStatus}>
                   <Ionicons name="checkmark-circle" size={16} color="#50C878" />
                   <Text style={styles.scaleStatusText}>Escala Comunicação OK</Text>
                 </View>
               )}
+              {item.escalaLouvor === "OK" && (
+                <View style={styles.scaleStatus}>
+                  <Ionicons name="checkmark-circle" size={16} color="#50C878" />
+                  <Text style={styles.scaleStatusText}>Escala Louvor OK</Text>
+                </View>
+              )}
               {item.totalEscalas > 0 && (
                 <Text style={styles.totalScalesText}>Total de escalas: {item.totalEscalas}</Text>
               )}
             </View>
+
+            {/* Escalas Expandidas */}
+            {expandedEvents[item.id] && eventScales[item.id] && (
+              <View style={styles.expandedScalesContainer}>
+                
+                {/* Escalas de Comunicação */}
+                {eventScales[item.id].comunicacao.length > 0 && (
+                  <View style={styles.ministryScalesSection}>
+                    <Text style={styles.ministryScalesTitle}>📢 Comunicação</Text>
+                    {eventScales[item.id].comunicacao.map((scale) => (
+                      <View key={scale.id} style={styles.scaleDetailItem}>
+                        <View style={styles.scaleRoles}>
+                          {scale.responsavelSom && (
+                            <Text style={styles.roleDetailText}>Som: {scale.responsavelSom.nome}</Text>
+                          )}
+                          {scale.responsavelIluminacao && (
+                            <Text style={styles.roleDetailText}>Iluminação: {scale.responsavelIluminacao.nome}</Text>
+                          )}
+                          {scale.operadorSlides && (
+                            <Text style={styles.roleDetailText}>Slides: {scale.operadorSlides.nome}</Text>
+                          )}
+                          {scale.cinegrafista && (
+                            <Text style={styles.roleDetailText}>Cinegrafista: {scale.cinegrafista.nome}</Text>
+                          )}
+                          {scale.fotografo && (
+                            <Text style={styles.roleDetailText}>Fotógrafo: {scale.fotografo.nome}</Text>
+                          )}
+                          {scale.streamingOperator && (
+                            <Text style={styles.roleDetailText}>Streaming: {scale.streamingOperator.nome}</Text>
+                          )}
+                        </View>
+                        {scale.observations && (
+                          <Text style={styles.observationsDetailText}>📝 {scale.observations}</Text>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Escalas de Louvor */}
+                {eventScales[item.id].louvor.length > 0 && (
+                  <View style={styles.ministryScalesSection}>
+                    <Text style={styles.ministryScalesTitle}>🎵 Louvor</Text>
+                    {eventScales[item.id].louvor.map((scale) => (
+                      <View key={scale.id} style={styles.scaleDetailItem}>
+                        <Text style={styles.roleDetailText}>Banda: {scale.banda?.nome || "N/A"}</Text>
+                        <Text style={styles.roleDetailText}>Responsável: {scale.banda?.responsavel?.nome || "N/A"}</Text>
+                        {scale.observations && (
+                          <Text style={styles.observationsDetailText}>📝 {scale.observations}</Text>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Caso não tenha escalas */}
+                {eventScales[item.id].comunicacao.length === 0 && eventScales[item.id].louvor.length === 0 && (
+                  <Text style={styles.noScalesText}>Nenhuma escala cadastrada para este evento</Text>
+                )}
+              </View>
+            )}
           </View>
         </View>
       )}
@@ -671,67 +845,107 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
   );
 
   const renderScales = () => (
-    <FlatList
-      style={styles.tabContent}
-      data={scales}
-      keyExtractor={(item) => `${item.eventId}_${item.id}`}
-      ListHeaderComponent={() => (
-        <View style={styles.scalesHeader}>
-          <Text style={styles.tabTitle}>Escalas:</Text>
+    <View style={styles.container}>
+      <View style={styles.scalesHeader}>
+        <Text style={styles.tabTitle}>Escalas da Comunicação</Text>
+        <View style={styles.scalesButtonsContainer}>
+          <TouchableOpacity 
+            style={styles.refreshScalesButton} 
+            onPress={() => {
+              setLoading(true);
+              loadScales().finally(() => setLoading(false));
+            }}
+          >
+            <Ionicons name="refresh" size={16} color="#666" />
+            <Text style={styles.refreshScalesButtonText}>Atualizar</Text>
+          </TouchableOpacity>
+          
           <TouchableOpacity style={styles.createScaleButton} onPress={openCreateScaleModal}>
             <Ionicons name="add-circle" size={20} color="#fff" />
             <Text style={styles.createScaleButtonText}>Criar Escala</Text>
           </TouchableOpacity>
         </View>
-      )}
-      ListEmptyComponent={() => (
-        <Text style={styles.emptyText}>Nenhuma escala criada ainda</Text>
-      )}
-      renderItem={({ item }) => (
-        <View style={styles.scaleItem}>
-          <View style={styles.scaleContent}>
-            <Text style={styles.scaleTitle}>{item.eventName}</Text>
-            <Text style={styles.scaleDate}>{item.eventDate} - {item.eventTime}</Text>
+      </View>
+
+      <FlatList
+        data={scales}
+        keyExtractor={(item) => `${item.eventId}_${item.id}`}
+        contentContainerStyle={styles.scalesList}
+        ListEmptyComponent={() => (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Nenhuma escala criada ainda</Text>
+            <Text style={styles.emptySubText}>Crie escalas para organizar os eventos do ministério</Text>
             
-            <View style={styles.scaleRoles}>
-              {item.responsavelSom && (
-                <Text style={styles.roleText}>Som: {item.responsavelSom.nome}</Text>
-              )}
-              {item.responsavelIluminacao && (
-                <Text style={styles.roleText}>Iluminação: {item.responsavelIluminacao.nome}</Text>
-              )}
-              {item.operadorSlides && (
-                <Text style={styles.roleText}>Slides: {item.operadorSlides.nome}</Text>
-              )}
-              {item.cinegrafista && (
-                <Text style={styles.roleText}>Cinegrafista: {item.cinegrafista.nome}</Text>
-              )}
-              {item.fotografo && (
-                <Text style={styles.roleText}>Fotógrafo: {item.fotografo.nome}</Text>
-              )}
-              {item.streamingOperator && (
-                <Text style={styles.roleText}>Streaming: {item.streamingOperator.nome}</Text>
+            <TouchableOpacity 
+              style={styles.refreshEmptyButton} 
+              onPress={() => {
+                console.log("Recarregando escalas...");
+                setLoading(true);
+                loadScales().finally(() => setLoading(false));
+              }}
+            >
+              <Ionicons name="refresh" size={16} color="#B8986A" />
+              <Text style={styles.refreshEmptyButtonText}>Recarregar escalas</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        renderItem={({ item }) => (
+          <View style={styles.scaleCard}>
+            <View style={styles.scaleContent}>
+              <View style={styles.scaleHeader}>
+                <Text style={styles.scaleTitle}>{item.eventName}</Text>
+                <Text style={styles.scaleDate}>{item.eventDate} - {item.eventTime}</Text>
+              </View>
+              
+              <View style={styles.scaleRoles}>
+                {item.responsavelSom && (
+                  <Text style={styles.roleText}>🔊 Som: {item.responsavelSom.nome}</Text>
+                )}
+                {item.responsavelIluminacao && (
+                  <Text style={styles.roleText}>💡 Iluminação: {item.responsavelIluminacao.nome}</Text>
+                )}
+                {item.operadorSlides && (
+                  <Text style={styles.roleText}>💻 Slides: {item.operadorSlides.nome}</Text>
+                )}
+                {item.cinegrafista && (
+                  <Text style={styles.roleText}>🎬 Cinegrafista: {item.cinegrafista.nome}</Text>
+                )}
+                {item.fotografo && (
+                  <Text style={styles.roleText}>📷 Fotógrafo: {item.fotografo.nome}</Text>
+                )}
+                {item.streamingOperator && (
+                  <Text style={styles.roleText}>📡 Streaming: {item.streamingOperator.nome}</Text>
+                )}
+              </View>
+
+              {item.observations && (
+                <View style={styles.observationsContainer}>
+                  <Text style={styles.observationsText}>📝 {item.observations}</Text>
+                </View>
               )}
             </View>
+            
+            <View style={styles.scaleActions}>
+              <TouchableOpacity
+                style={styles.editScaleButton}
+                onPress={() => openEditScaleModal(item)}
+              >
+                <Ionicons name="pencil" size={18} color="#B8986A" />
+                <Text style={styles.actionButtonText}>Editar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deleteScaleButton}
+                onPress={() => deleteScale(item)}
+              >
+                <Ionicons name="trash" size={18} color="#ff4444" />
+                <Text style={styles.actionButtonText}>Excluir</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <View style={styles.scaleActions}>
-            <TouchableOpacity
-              style={styles.editScaleButton}
-              onPress={() => openEditScaleModal(item)}
-            >
-              <Ionicons name="pencil" size={16} color="#B8986A" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.deleteScaleButton}
-              onPress={() => deleteScale(item)}
-            >
-              <Ionicons name="trash" size={16} color="#ff4444" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-      showsVerticalScrollIndicator={false}
-    />
+        )}
+        showsVerticalScrollIndicator={false}
+      />
+    </View>
   );
 
   return (
@@ -937,14 +1151,14 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
         </View>
       </Modal>
 
-      {/* Modal de Criar/Editar Escala - CORRIGIDO */}
+      {/* Modal de Criar/Editar Escala */}
       <Modal
         visible={scaleModalVisible}
         animationType="slide"
         transparent={true}
         onRequestClose={() => {
           setScaleModalVisible(false);
-          resetCompletely(); // Usar reset completo ao fechar modal
+          resetCompletely();
         }}
       >
         <View style={styles.modalOverlay}>
@@ -956,7 +1170,7 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
               <TouchableOpacity
                 onPress={() => {
                   setScaleModalVisible(false);
-                  resetCompletely(); // Usar reset completo ao fechar modal
+                  resetCompletely();
                 }}
               >
                 <Ionicons name="close" size={24} color="#666" />
@@ -996,7 +1210,7 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
                   style={[styles.modalButton, styles.cancelButton]}
                   onPress={() => {
                     setScaleModalVisible(false);
-                    resetCompletely(); // Usar reset completo ao cancelar
+                    resetCompletely();
                   }}
                 >
                   <Text style={styles.cancelButtonText}>Cancelar</Text>
@@ -1025,10 +1239,222 @@ export default function MinisterioComunicacaoAdmin({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  // ESTILOS SIMPLIFICADOS E FUNCIONAIS
+  membersScrollContainer: {
+    maxHeight: 300,
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    padding: 10,
+  },
+  scalesHeaderContent: {
+    width: '100%',
+  },
+  allMembersContainer: {
+    width: '100%',
+  },
+  emptyMembersContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+  },
+  scalesButtonsContainer: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+  refreshScalesButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f0f0f0",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    gap: 4,
+  },
+  refreshScalesButtonText: {
+    color: "#666",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  refreshEmptyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8f9fa",
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 6,
+    marginTop: 15,
+  },
+  refreshEmptyButtonText: {
+    color: "#B8986A",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  membersExpandableCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  membersCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  membersCardTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+  },
+  membersExpandButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  membersExpandText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#B8986A",
+  },
+  membersExpandedContent: {
+    padding: 16,
+  },
   container: {
     flex: 1,
+  },
+  membersHeader: {
+    padding: 20,
     backgroundColor: "#f5f5f5",
   },
+  membersListContainer: {
+    paddingBottom: 20,
+  },
+  memberCard: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  deleteMemberButton: {
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: "#ffe6e6",
+  },
+  expandButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    backgroundColor: "#f8f9fa",
+    gap: 6,
+  },
+  expandButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#B8986A",
+  },
+  scalesHeader: {
+    padding: 20,
+    backgroundColor: "#f5f5f5",
+    alignItems: "center",
+    gap: 15,
+  },
+  scalesList: {
+    padding: 20,
+  },
+  scaleCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 15,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  scaleHeader: {
+    marginBottom: 12,
+  },
+  observationsContainer: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+  },
+  observationsText: {
+    fontSize: 12,
+    color: "#666",
+    fontStyle: "italic",
+    lineHeight: 16,
+  },
+  scaleActions: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginTop: 15,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+    gap: 10,
+  },
+  editScaleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: "#f0f8ff",
+    gap: 5,
+    flex: 1,
+    justifyContent: "center",
+  },
+  deleteScaleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: "#ffe6e6",
+    gap: 5,
+    flex: 1,
+    justifyContent: "center",
+  },
+  actionButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#666",
+  },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+  },
+  emptySubText: {
+    textAlign: "center",
+    color: "#aaa",
+    fontSize: 12,
+    marginTop: 5,
+    maxWidth: 250,
+  },
+  // ESTILOS PRINCIPAIS CONTINUAM
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -1189,6 +1615,62 @@ const styles = StyleSheet.create({
   eventContent: {
     flex: 1,
   },
+  eventMainInfo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  eventBasicInfo: {
+    flex: 1,
+  },
+  scalesStatusContainer: {
+    gap: 5,
+    marginBottom: 10,
+  },
+  expandedScalesContainer: {
+    backgroundColor: "#f8f9fa",
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: "#B8986A",
+  },
+  ministryScalesSection: {
+    marginBottom: 15,
+  },
+  ministryScalesTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 8,
+  },
+  scaleDetailItem: {
+    backgroundColor: "#fff",
+    borderRadius: 6,
+    padding: 10,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: "#B8986A",
+  },
+  roleDetailText: {
+    fontSize: 12,
+    color: "#555",
+    marginBottom: 2,
+  },
+  observationsDetailText: {
+    fontSize: 11,
+    color: "#777",
+    marginTop: 5,
+    fontStyle: "italic",
+  },
+  noScalesText: {
+    textAlign: "center",
+    color: "#999",
+    fontSize: 12,
+    fontStyle: "italic",
+    paddingVertical: 10,
+  },
   eventTitle: {
     fontSize: 16,
     fontWeight: "600",
@@ -1219,35 +1701,9 @@ const styles = StyleSheet.create({
     marginTop: 3,
     fontStyle: "italic",
   },
-  scalesHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  createScaleButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#B8986A",
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 5,
-  },
-  createScaleButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  scaleItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    padding: 15,
-    marginBottom: 10,
-    elevation: 2,
+  membersList: {
+    flex: 1,
+    marginTop: 10,
   },
   scaleContent: {
     flex: 1,
@@ -1270,19 +1726,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#555",
   },
-  scaleActions: {
+  createScaleButton: {
     flexDirection: "row",
-    gap: 8,
+    alignItems: "center",
+    backgroundColor: "#B8986A",
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 5,
   },
-  editScaleButton: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: "#f0f8ff",
-  },
-  deleteScaleButton: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: "#ffe6e6",
+  createScaleButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
   },
   emptyText: {
     textAlign: "center",
@@ -1528,3 +1984,5 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
+
+// Fim do arquivo
