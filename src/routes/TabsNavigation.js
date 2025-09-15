@@ -112,8 +112,8 @@ export default function TabsNavigation() {
           tabBarInactiveTintColor: "#777",
           tabBarStyle: {
             backgroundColor: "#fff",
-            height: Platform.OS === "ios" ? 80 : 120,
-            paddingBottom: Platform.OS === "ios" ? 40 : 50,
+            height: Platform.OS === "ios" ? 80 : 100,
+            paddingBottom: Platform.OS === "ios" ? 40 : 40,
             paddingTop: Platform.OS === 'ios' ? 10 : 10,
           },
           tabBarIcon: ({ color, size }) => {
@@ -151,7 +151,7 @@ export default function TabsNavigation() {
         />
         <Tab.Screen 
           name="ConteúdosTab" 
-          component={ConteudosStackNavigator}
+          component={ConteudosScreen}
           options={{
             tabBarLabel: "Conteúdos"
           }}

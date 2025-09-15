@@ -1,27 +1,257 @@
-import React from "react";
+import React, { useState, useContext, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Image,
+  Modal,
+  TextInput,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { AuthContext } from "../context/AuthContext";
+import { doc, getDoc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { auth, db } from "../Firebase/FirebaseConfig";
+import { updateProfile } from "firebase/auth";
 
 export default function ProfileScreen({ navigation }) {
-  const ProfileMenuItem = ({ iconName, title, onPress, showArrow = true }) => (
-    <TouchableOpacity style={styles.menuItem} onPress={onPress}>
-      <View style={styles.menuItemLeft}>
-        <Ionicons name={iconName} size={20} color="#B8986A" />
-        <Text style={styles.menuItemText}>{title}</Text>
-      </View>
-      {showArrow && (
-        <Ionicons name="chevron-forward" size={20} color="#ccc" />
-      )}
-    </TouchableOpacity>
+  const { user, userData, setUserData } = useContext(AuthContext);
+  const [loading, setLoading] = useState(true);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [userInfo, setUserInfo] = useState(null);
+  const [ministerios, setMinisterios] = useState([]);
+  
+  // Estados para edição
+  const [editNome, setEditNome] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editCelular, setEditCelular] = useState("");
+  const [editDiaNascimento, setEditDiaNascimento] = useState("");
+  const [editMesNascimento, setEditMesNascimento] = useState("");
+  const [editAnoNascimento, setEditAnoNascimento] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const ProfileMenuItem = ({ iconName, title, onPress, showArrow = true, children }) => (
+    <View>
+      <TouchableOpacity style={styles.menuItem} onPress={onPress}>
+        <View style={styles.menuItemLeft}>
+          <Ionicons name={iconName} size={20} color="#B8986A" />
+          <Text style={styles.menuItemText}>{title}</Text>
+        </View>
+        {showArrow && (
+          <Ionicons name="chevron-forward" size={20} color="#ccc" />
+        )}
+      </TouchableOpacity>
+      {children}
+    </View>
   );
+
+  const formatPhone = (text) => {
+    const numbers = text.replace(/\D/g, '');
+    
+    if (numbers.length <= 11) {
+      const match = numbers.match(/^(\d{0,2})(\d{0,5})(\d{0,4})$/);
+      if (match) {
+        let formatted = '';
+        if (match[1]) formatted += `(${match[1]}`;
+        if (match[1] && match[1].length === 2) formatted += ') ';
+        if (match[2]) formatted += match[2];
+        if (match[3]) formatted += `-${match[3]}`;
+        return formatted;
+      }
+    }
+    return text;
+  };
+
+  const handlePhoneChange = (text) => {
+    const formatted = formatPhone(text);
+    setEditCelular(formatted);
+  };
+
+  // NOVA FUNÇÃO - Buscar ministérios do usuário
+  const loadUserMinisterios = async (userId) => {
+    try {
+      const ministeriosEncontrados = [];
+      
+      // Lista dos ministérios disponíveis
+      const ministeriosDisponiveis = [
+        { nome: "Comunicação", path: "comunicacao" },
+        { nome: "Louvor", path: "louvor" }
+      ];
+      
+      // Buscar em cada ministério
+      for (const ministerio of ministeriosDisponiveis) {
+        try {
+          const membersRef = collection(
+            db, 
+            "churchBasico", 
+            "ministerios", 
+            "conteudo", 
+            ministerio.path, 
+            "membros"
+          );
+          
+          // Buscar por userId no campo userId ou por ID do documento
+          const querySnapshot = await getDocs(membersRef);
+          
+          querySnapshot.forEach((doc) => {
+            const memberData = doc.data();
+            
+            // Verificar se é o usuário atual
+            if (memberData.userId === userId || doc.id === `member_${userId}`) {
+              ministeriosEncontrados.push({
+                nome: ministerio.nome,
+                path: ministerio.path,
+                dadosMembresia: {
+                  registradoEm: memberData.createdAt,
+                  registradoPor: memberData.registeredByName,
+                  status: "Ativo"
+                }
+              });
+            }
+          });
+          
+        } catch (error) {
+          console.log(`Erro ao buscar no ministério ${ministerio.nome}:`, error);
+        }
+      }
+      
+      console.log(`Ministérios encontrados para o usuário ${userId}:`, ministeriosEncontrados);
+      setMinisterios(ministeriosEncontrados);
+      
+    } catch (error) {
+      console.log("Erro geral ao buscar ministérios:", error);
+      setMinisterios([]);
+    }
+  };
+
+  // Carregar informações do usuário - MODIFICADA
+  const loadUserInfo = async () => {
+    if (!user?.uid) return;
+
+    try {
+      setLoading(true);
+      
+      // Buscar dados básicos do usuário
+      let docRef = doc(db, "churchBasico", "users", "members", user.uid);
+      let docSnap = await getDoc(docRef);
+      
+      if (!docSnap.exists()) {
+        docRef = doc(db, "churchBasico", "users", "lideres", user.uid);
+        docSnap = await getDoc(docRef);
+      }
+
+      if (docSnap.exists()) {
+        const userData = docSnap.data();
+        setUserInfo(userData);
+        
+        // Preencher campos de edição
+        setEditNome(userData.name || "");
+        setEditEmail(userData.email || "");
+        setEditCelular(userData.phone || "");
+        setEditDiaNascimento(userData.birthDay || "");
+        setEditMesNascimento(userData.birthMonth || "");
+        setEditAnoNascimento(userData.birthYear || "");
+      }
+      
+      // NOVA CHAMADA - Buscar ministérios independentemente
+      await loadUserMinisterios(user.uid);
+      
+    } catch (error) {
+      console.error("Erro ao carregar informações do usuário:", error);
+      Alert.alert("Erro", "Não foi possível carregar as informações do perfil");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Salvar alterações
+  const handleSaveProfile = async () => {
+    if (!editNome.trim()) {
+      Alert.alert("Erro", "Nome é obrigatório");
+      return;
+    }
+
+    if (!editEmail.trim()) {
+      Alert.alert("Erro", "Email é obrigatório");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editEmail)) {
+      Alert.alert("Erro", "Por favor, insira um email válido");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      
+      // Determinar se é member ou leader
+      let docRef = doc(db, "churchBasico", "users", "members", user.uid);
+      let docSnap = await getDoc(docRef);
+      
+      if (!docSnap.exists()) {
+        docRef = doc(db, "churchBasico", "users", "lideres", user.uid);
+      }
+
+      // Preparar dados para atualização
+      const updateData = {
+        name: editNome.trim(),
+        email: editEmail.trim(),
+        phone: editCelular || null,
+        birthDay: editDiaNascimento,
+        birthMonth: editMesNascimento,
+        birthYear: editAnoNascimento,
+      };
+
+      if (editDiaNascimento && editMesNascimento && editAnoNascimento) {
+        updateData.birthDate = `${editDiaNascimento}/${editMesNascimento}/${editAnoNascimento}`;
+      }
+
+      // Atualizar no Firestore
+      await updateDoc(docRef, updateData);
+      
+      // Atualizar o displayName no Auth
+      await updateProfile(auth.currentUser, {
+        displayName: editNome.trim()
+      });
+
+      // Atualizar contexto local
+      setUserData(prev => ({
+        ...prev,
+        name: editNome.trim(),
+        email: editEmail.trim(),
+        phone: editCelular || null,
+      }));
+
+      Alert.alert("Sucesso", "Perfil atualizado com sucesso!");
+      setEditModalVisible(false);
+      loadUserInfo(); // Recarregar informações
+      
+    } catch (error) {
+      console.error("Erro ao salvar perfil:", error);
+      Alert.alert("Erro", "Não foi possível salvar as alterações");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    loadUserInfo();
+  }, [user?.uid]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#B8986A" />
+          <Text style={styles.loadingText}>Carregando perfil...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -53,17 +283,22 @@ export default function ProfileScreen({ navigation }) {
             </View>
             
             <View style={styles.profileText}>
-              <Text style={styles.profileName}>Guilherme Godoy</Text>
-              <View style={styles.progressContainer}>
-                <Text style={styles.progressText}>26% completo</Text>
-                <View style={styles.progressBar}>
-                  <View style={[styles.progressFill, { width: "26%" }]} />
-                </View>
-              </View>
+              <Text style={styles.profileName}>
+                {userInfo?.name || userData?.name || user?.displayName || "Nome não informado"}
+              </Text>
+              <Text style={styles.profileEmail}>
+                {userInfo?.email || user?.email || "Email não informado"}
+              </Text>
+              {userInfo?.phone && (
+                <Text style={styles.profilePhone}>{userInfo.phone}</Text>
+              )}
             </View>
           </View>
           
-          <TouchableOpacity style={styles.editProfileButton}>
+          <TouchableOpacity 
+            style={styles.editProfileButton}
+            onPress={() => setEditModalVisible(true)}
+          >
             <Ionicons name="person-outline" size={20} color="#B8986A" />
             <Text style={styles.editProfileButtonText}>Editar meu perfil</Text>
           </TouchableOpacity>
@@ -72,30 +307,158 @@ export default function ProfileScreen({ navigation }) {
         {/* Menu Items */}
         <View style={styles.menuSection}>
           <ProfileMenuItem
-            iconName="notifications-outline"
-            title="Notificações"
-            onPress={() => console.log("Notificações")}
-          />
-          
-          <ProfileMenuItem
-            iconName="document-text-outline"
-            title="Bloco de Notas"
-            onPress={() => console.log("Bloco de Notas")}
-          />
-          
-          <ProfileMenuItem
             iconName="people-outline"
-            title="Ministérios"
-            onPress={() => navigation.navigate("Ministerios")}
-          />
-          
-          <ProfileMenuItem
-            iconName="card-outline"
-            title="Minhas carteirinhas"
-            onPress={() => console.log("Carteirinhas")}
-          />
+            title="Ministérios que faço parte"
+            showArrow={false}
+          >
+            <View style={styles.ministeriosContainer}>
+              {ministerios.length > 0 ? (
+                ministerios.map((ministerio, index) => (
+                  <View key={index} style={styles.ministerioItem}>
+                    <View style={styles.ministerioHeader}>
+                      <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+                      <Text style={styles.ministerioText}>{ministerio.nome}</Text>
+                    </View>
+                    
+                    {ministerio.dadosMembresia && (
+                      <View style={styles.ministerioDetails}>
+                        <Text style={styles.ministerioDetailText}>
+                          Status: {ministerio.dadosMembresia.status}
+                        </Text>
+                        {ministerio.dadosMembresia.registradoPor && (
+                          <Text style={styles.ministerioDetailText}>
+                            Cadastrado por: {ministerio.dadosMembresia.registradoPor}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                ))
+              ) : (
+                <View style={styles.noMinisterioContainer}>
+                  <Ionicons name="information-circle-outline" size={24} color="#999" />
+                  <Text style={styles.noMinisterioText}>
+                    Você ainda não faz parte de nenhum ministério
+                  </Text>
+                  <Text style={styles.noMinisterioSubText}>
+                    Entre em contato com um líder para ser adicionado aos ministérios
+                  </Text>
+                </View>
+              )}
+            </View>
+          </ProfileMenuItem>
         </View>
       </ScrollView>
+
+      {/* Modal de Edição */}
+      <Modal
+        visible={editModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Editar Perfil</Text>
+              <TouchableOpacity 
+                onPress={() => setEditModalVisible(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalForm}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Nome completo:</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Digite seu nome"
+                  value={editNome}
+                  onChangeText={setEditNome}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Email:</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Digite seu email"
+                  value={editEmail}
+                  onChangeText={setEditEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Celular:</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="(00) 00000-0000"
+                  value={editCelular}
+                  onChangeText={handlePhoneChange}
+                  keyboardType="phone-pad"
+                  maxLength={15}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Data de Nascimento:</Text>
+                <View style={styles.dateRow}>
+                  <TextInput
+                    style={[styles.input, styles.dateInput]}
+                    placeholder="Dia"
+                    value={editDiaNascimento}
+                    onChangeText={setEditDiaNascimento}
+                    keyboardType="numeric"
+                    maxLength={2}
+                  />
+                  <TextInput
+                    style={[styles.input, styles.dateInput]}
+                    placeholder="Mês"
+                    value={editMesNascimento}
+                    onChangeText={setEditMesNascimento}
+                    keyboardType="numeric"
+                    maxLength={2}
+                  />
+                  <TextInput
+                    style={[styles.input, styles.dateInput]}
+                    placeholder="Ano"
+                    value={editAnoNascimento}
+                    onChangeText={setEditAnoNascimento}
+                    keyboardType="numeric"
+                    maxLength={4}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity 
+                  style={styles.cancelButton}
+                  onPress={() => setEditModalVisible(false)}
+                  disabled={saving}
+                >
+                  <Text style={styles.cancelButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.saveButton}
+                  onPress={handleSaveProfile}
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>Salvar</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -104,6 +467,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f5f5f5",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: "#666",
   },
   header: {
     flexDirection: "row",
@@ -177,24 +550,14 @@ const styles = StyleSheet.create({
     color: "#333",
     marginBottom: 5,
   },
-  progressContainer: {
-    marginTop: 5,
-  },
-  progressText: {
-    fontSize: 12,
+  profileEmail: {
+    fontSize: 14,
     color: "#666",
-    marginBottom: 5,
+    marginBottom: 2,
   },
-  progressBar: {
-    height: 4,
-    backgroundColor: "#e0e0e0",
-    borderRadius: 2,
-    width: 150,
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: "#B8986A",
-    borderRadius: 2,
+  profilePhone: {
+    fontSize: 14,
+    color: "#666",
   },
   editProfileButton: {
     flexDirection: "row",
@@ -238,5 +601,215 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#333",
     marginLeft: 15,
+  },
+  ministeriosContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 15,
+  },
+  ministerioItem: {
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  ministerioHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 5,
+  },
+  ministerioText: {
+    fontSize: 14,
+    color: "#333",
+    marginLeft: 8,
+    fontWeight: "600",
+  },
+  ministerioDetails: {
+    marginLeft: 24,
+    gap: 2,
+  },
+  ministerioDetailText: {
+    fontSize: 12,
+    color: "#666",
+  },
+  noMinisterioContainer: {
+    alignItems: "center",
+    paddingVertical: 20,
+    paddingHorizontal: 15,
+  },
+  noMinisterioText: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    marginTop: 8,
+    fontWeight: "500",
+  },
+  noMinisterioSubText: {
+    fontSize: 12,
+    color: "#999",
+    textAlign: "center",
+    marginTop: 4,
+    fontStyle: "italic",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+    paddingTop: 50,
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    flex: 1,
+    maxHeight: "90%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  modalTitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#333",
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#f5f5f5",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalScrollView: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  modalForm: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  inputContainer: {
+    marginBottom: 24,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 8,
+  },
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8f9fa",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e9ecef",
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    minHeight: 50,
+  },
+  inputIcon: {
+    marginRight: 12,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 16,
+    color: "#333",
+    paddingVertical: 12,
+  },
+  dateContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  dateInputWrapper: {
+    flex: 1,
+    backgroundColor: "#f8f9fa",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e9ecef",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    minHeight: 50,
+    justifyContent: "center",
+  },
+  yearInput: {
+    flex: 1.3,
+  },
+  dateInput: {
+    fontSize: 16,
+    color: "#333",
+    paddingVertical: 12,
+    fontWeight: "500",
+  },
+  dateSeparator: {
+    fontSize: 18,
+    color: "#999",
+    fontWeight: "600",
+  },
+  modalFooter: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    backgroundColor: "#f5f5f5",
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#666",
+  },
+  saveButton: {
+    flex: 1,
+    backgroundColor: "#B8986A",
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    shadowColor: "#B8986A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  saveButtonDisabled: {
+    backgroundColor: "#ccc",
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
   },
 });

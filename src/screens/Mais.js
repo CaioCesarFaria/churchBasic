@@ -49,7 +49,7 @@ export default function MaisScreen({ navigation }) {
           
           <TouchableOpacity 
             style={styles.profileButton}
-            onPress={() => navigation.navigate("UserProfile")}
+            onPress={() => navigation.navigate("Profile")}
           >
             <Ionicons name="person-outline" size={20} color="#B8986A" />
             <Text style={styles.profileButtonText}>Ver meu perfil</Text>
@@ -93,12 +93,12 @@ export default function MaisScreen({ navigation }) {
 
             <TouchableOpacity 
               style={styles.gridItem}
-              onPress={() => navigation.navigate("TestemunhoMain")}
+              onPress={() => navigation.navigate("CelulaMain")}
             >
               <View style={styles.gridIconContainer}>
                 <Ionicons name="heart-outline" size={30} color="#B8986A" />
               </View>
-              <Text style={styles.gridItemText}>TESTEMUNHO</Text>
+              <Text style={styles.gridItemText}>CÉLULA</Text>
             </TouchableOpacity>
           </View>
 
@@ -123,7 +123,7 @@ export default function MaisScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.menuRow}>
+          {/* <View style={styles.menuRow}>
             <TouchableOpacity style={styles.gridItem}>
               <View style={styles.gridIconContainer}>
                 <Ionicons name="calendar-outline" size={30} color="#B8986A" />
@@ -137,7 +137,7 @@ export default function MaisScreen({ navigation }) {
               </View>
               <Text style={styles.gridItemText}>COMPARTILHAR</Text>
             </TouchableOpacity>
-          </View>
+          </View> */}
         </View>
       </ScrollView>
     </SafeAreaView>

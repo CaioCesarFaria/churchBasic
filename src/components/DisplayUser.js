@@ -27,7 +27,7 @@ export default function DisplayUser({ userName }) {
           try {
             await signOut(auth);
             setUserData(null);
-            navigation.navigate("Home"); // ajusta para sua rota inicial
+            navigation.navigate("HomeTab"); // ajusta para sua rota inicial
           } catch (error) {
             console.log("Erro ao sair:", error);
             Alert.alert("Erro", "Erro ao sair do sistema");

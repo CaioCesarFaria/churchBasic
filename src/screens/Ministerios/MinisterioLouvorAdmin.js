@@ -1,4 +1,4 @@
-// MinisterioLouvorAdmin.js - VERSÃO ATUALIZADA COM TODAS AS MELHORIAS
+// MinisterioLouvorAdmin.js - VERSÃO COM MÚLTIPLAS BANDAS POR ESCALA
 import React, { useState, useEffect, useContext } from "react";
 import {
   View,
@@ -40,7 +40,6 @@ export default function MinisterioLouvorAdmin({ navigation }) {
   const [searchUsers, setSearchUsers] = useState([]);
   const [userSearchText, setUserSearchText] = useState("");
   const [searchingUsers, setSearchingUsers] = useState(false);
-  // NOVO: Estado para controlar expansão da lista de membros
   const [membersExpanded, setMembersExpanded] = useState(false);
 
   // Estados das Bandas
@@ -56,19 +55,22 @@ export default function MinisterioLouvorAdmin({ navigation }) {
 
   // Estados dos Eventos
   const [events, setEvents] = useState([]);
-  
-  // Estados para expansão de escalas nos eventos
   const [expandedEvents, setExpandedEvents] = useState({});
   const [eventScales, setEventScales] = useState({});
 
-  // Estados das Escalas
+  // Estados das Escalas - MODIFICADO PARA MÚLTIPLAS BANDAS
   const [scales, setScales] = useState([]);
   const [scaleModalVisible, setScaleModalVisible] = useState(false);
   const [eventSelectionModalVisible, setEventSelectionModalVisible] = useState(false);
   const [bandaSelectionModalVisible, setBandaSelectionModalVisible] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [selectedBanda, setSelectedBanda] = useState(null);
   const [editingScale, setEditingScale] = useState(null);
+  
+  // NOVO: Sistema de múltiplas bandas
+  const [selectedBandas, setSelectedBandas] = useState([]); // Array de bandas selecionadas
+  const [bandaSearchText, setBandaSearchText] = useState(""); // Para buscar bandas
+  const [bandaSearchResults, setBandaSearchResults] = useState([]); // Resultados da busca
+  
   const [scaleForm, setScaleForm] = useState({
     observations: ""
   });
@@ -150,7 +152,7 @@ export default function MinisterioLouvorAdmin({ navigation }) {
     }
   };
 
-  // NOVA FUNÇÃO - Carregar todas as escalas de todos os ministérios para um evento
+  // Carregar todas as escalas de todos os ministérios para um evento
   const loadEventScales = async (eventId) => {
     try {
       const scalesData = {
@@ -164,10 +166,8 @@ export default function MinisterioLouvorAdmin({ navigation }) {
       querySnapshot.forEach((doc) => {
         const scaleData = doc.data();
         
-        // Verificar se é placeholder
         if (doc.id === "_placeholder") return;
         
-        // Classificar por ministério
         if (scaleData.ministerio === "comunicacao") {
           scalesData.comunicacao.push({
             id: doc.id,
@@ -191,7 +191,7 @@ export default function MinisterioLouvorAdmin({ navigation }) {
     }
   };
 
-  // FUNÇÃO para expandir/recolher evento
+  // Função para expandir/recolher evento
   const toggleEventExpansion = async (eventId) => {
     const isExpanded = expandedEvents[eventId];
     
@@ -200,27 +200,24 @@ export default function MinisterioLouvorAdmin({ navigation }) {
       [eventId]: !isExpanded
     }));
 
-    // Se está expandindo e ainda não carregou as escalas, carregar
     if (!isExpanded && !eventScales[eventId]) {
       await loadEventScales(eventId);
     }
   };
 
-  // FUNÇÃO ATUALIZADA - Carregar escalas existentes
+  // FUNÇÃO MODIFICADA - Carregar escalas existentes (agora suporta múltiplas bandas)
   const loadScales = async () => {
     try {
       const scalesData = [];
       
       for (const event of events) {
         try {
-          // Buscar na coleção escalas do evento
           const scalesRef = collection(db, "churchBasico", "sistema", "eventos", event.id, "escalas");
           const querySnapshot = await getDocs(scalesRef);
           
           querySnapshot.forEach((doc) => {
             const scaleData = doc.data();
             
-            // Verificar se é escala de louvor
             if (scaleData.ministerio === "louvor") {
               scalesData.push({
                 id: doc.id,
@@ -297,6 +294,76 @@ export default function MinisterioLouvorAdmin({ navigation }) {
     setResponsavelResults(filteredMembers);
   };
 
+  // NOVA FUNÇÃO - Buscar bandas para adicionar à escala
+  const searchBandasForScale = (searchText) => {
+    setBandaSearchText(searchText);
+    
+    if (!searchText.trim() || searchText.length < 2) {
+      setBandaSearchResults([]);
+      return;
+    }
+
+    // Filtrar bandas que não estão selecionadas ainda
+    const alreadySelectedIds = selectedBandas.map(banda => banda.id);
+    const filteredBandas = bandas.filter(banda =>
+      banda.nome.toLowerCase().includes(searchText.toLowerCase()) &&
+      !alreadySelectedIds.includes(banda.id)
+    );
+
+    setBandaSearchResults(filteredBandas);
+  };
+
+  // NOVA FUNÇÃO - Adicionar banda à lista de selecionadas
+  const addBandaToScale = (banda) => {
+    setSelectedBandas(prev => [...prev, {
+      ...banda,
+      ordem: prev.length + 1 // Adicionar ordem sequencial
+    }]);
+    setBandaSearchText("");
+    setBandaSearchResults([]);
+  };
+
+  // NOVA FUNÇÃO - Remover banda da lista de selecionadas
+  const removeBandaFromScale = (bandaId) => {
+    setSelectedBandas(prev => {
+      const filtered = prev.filter(banda => banda.id !== bandaId);
+      // Reordenar as bandas restantes
+      return filtered.map((banda, index) => ({
+        ...banda,
+        ordem: index + 1
+      }));
+    });
+  };
+
+  // NOVA FUNÇÃO - Reordenar bandas (mover para cima/baixo)
+  const moveBandaUp = (index) => {
+    if (index === 0) return;
+    
+    setSelectedBandas(prev => {
+      const newArray = [...prev];
+      [newArray[index - 1], newArray[index]] = [newArray[index], newArray[index - 1]];
+      // Atualizar ordem
+      return newArray.map((banda, idx) => ({
+        ...banda,
+        ordem: idx + 1
+      }));
+    });
+  };
+
+  const moveBandaDown = (index) => {
+    if (index === selectedBandas.length - 1) return;
+    
+    setSelectedBandas(prev => {
+      const newArray = [...prev];
+      [newArray[index], newArray[index + 1]] = [newArray[index + 1], newArray[index]];
+      // Atualizar ordem
+      return newArray.map((banda, idx) => ({
+        ...banda,
+        ordem: idx + 1
+      }));
+    });
+  };
+
   // Debounce para busca de usuários
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -305,7 +372,7 @@ export default function MinisterioLouvorAdmin({ navigation }) {
     return () => clearTimeout(timeoutId);
   }, [userSearchText]);
 
-  // Funções dos Membros
+  // Funções dos Membros (mantidas iguais)
   const openAddMemberModal = () => {
     setUserSearchText("");
     setSearchUsers([]);
@@ -379,7 +446,7 @@ export default function MinisterioLouvorAdmin({ navigation }) {
     );
   };
 
-  // Funções das Bandas
+  // Funções das Bandas (mantidas iguais)
   const openAddBandaModal = () => {
     setBandaForm({ nome: "", responsavel: null });
     setResponsavelSearch("");
@@ -433,12 +500,10 @@ export default function MinisterioLouvorAdmin({ navigation }) {
       };
 
       if (editingBanda) {
-        // Editando banda existente
         const bandaRef = doc(db, "churchBasico", "ministerios", "conteudo", "louvor", "bandas", editingBanda.id);
         await setDoc(bandaRef, bandaData);
         Alert.alert("Sucesso", "Banda atualizada com sucesso!");
       } else {
-        // Criando nova banda - precisa gerar um ID
         const bandaId = `banda_${Date.now()}`;
         const bandaRef = doc(db, "churchBasico", "ministerios", "conteudo", "louvor", "bandas", bandaId);
         await setDoc(bandaRef, bandaData);
@@ -483,19 +548,21 @@ export default function MinisterioLouvorAdmin({ navigation }) {
     );
   };
 
-  // Reset funções
+  // FUNÇÕES DE RESET MODIFICADAS
   const resetScaleForm = () => {
     setScaleForm({ observations: "" });
+    setSelectedBandas([]); // Limpar bandas selecionadas
+    setBandaSearchText("");
+    setBandaSearchResults([]);
     setEditingScale(null);
   };
 
   const resetCompletely = () => {
     resetScaleForm();
     setSelectedEvent(null);
-    setSelectedBanda(null);
   };
 
-  // Funções das Escalas
+  // FUNÇÕES DAS ESCALAS MODIFICADAS
   const openCreateScaleModal = () => {
     setEventSelectionModalVisible(true);
   };
@@ -503,16 +570,11 @@ export default function MinisterioLouvorAdmin({ navigation }) {
   const selectEventForScale = (event) => {
     setSelectedEvent(event);
     setEventSelectionModalVisible(false);
-    setBandaSelectionModalVisible(true);
-  };
-
-  const selectBandaForScale = (banda) => {
-    setSelectedBanda(banda);
-    setBandaSelectionModalVisible(false);
     resetScaleForm();
     setScaleModalVisible(true);
   };
 
+  // FUNÇÃO MODIFICADA - Abrir modal de edição de escala
   const openEditScaleModal = (scale) => {
     setEditingScale(scale);
     setSelectedEvent({
@@ -521,29 +583,44 @@ export default function MinisterioLouvorAdmin({ navigation }) {
       data: scale.eventDate,
       horario: scale.eventTime
     });
-    setSelectedBanda(scale.banda);
+    
+    // MODIFICADO: Carregar múltiplas bandas se existirem
+    if (scale.bandas && Array.isArray(scale.bandas)) {
+      // Escala nova com múltiplas bandas
+      setSelectedBandas(scale.bandas);
+    } else if (scale.banda) {
+      // Escala antiga com uma banda só - converter para array
+      setSelectedBandas([{
+        ...scale.banda,
+        ordem: 1
+      }]);
+    } else {
+      setSelectedBandas([]);
+    }
+    
     setScaleForm({
       observations: scale.observations || ""
     });
     setScaleModalVisible(true);
   };
 
+  // FUNÇÃO PRINCIPAL MODIFICADA - Salvar escala com múltiplas bandas
   const saveScale = async () => {
     if (!selectedEvent || !selectedEvent.id) {
       Alert.alert("Erro", "Evento não selecionado. Feche o modal e tente novamente.");
       return;
     }
 
-    if (!selectedBanda) {
-      Alert.alert("Erro", "Banda não selecionada. Feche o modal e tente novamente.");
+    if (selectedBandas.length === 0) {
+      Alert.alert("Erro", "Por favor, selecione pelo menos uma banda");
       return;
     }
 
     try {
       setLoading(true);
 
-      // NOVA LÓGICA: Gerar ID único para permitir múltiplas bandas por evento
-      const scaleId = editingScale ? editingScale.id : `louvor_${selectedBanda.id}_${Date.now()}`;
+      // Gerar ID único para a escala
+      const scaleId = editingScale ? editingScale.id : `louvor_${selectedEvent.id}_${Date.now()}`;
 
       const scaleData = {
         ministerio: "louvor",
@@ -551,11 +628,19 @@ export default function MinisterioLouvorAdmin({ navigation }) {
         eventName: selectedEvent.nome,
         eventDate: selectedEvent.data,
         eventTime: selectedEvent.horario,
-        banda: {
-          id: selectedBanda.id,
-          nome: selectedBanda.nome,
-          responsavel: selectedBanda.responsavel
-        },
+        // NOVO: Salvar array de bandas em ordem
+        bandas: selectedBandas.map(banda => ({
+          id: banda.id,
+          nome: banda.nome,
+          responsavel: banda.responsavel,
+          ordem: banda.ordem
+        })),
+        // MANTER: Compatibilidade com escala antiga (primeira banda)
+        banda: selectedBandas[0] ? {
+          id: selectedBandas[0].id,
+          nome: selectedBandas[0].nome,
+          responsavel: selectedBandas[0].responsavel
+        } : null,
         observations: scaleForm.observations.trim(),
         createdBy: user.uid,
         createdByName: userName,
@@ -596,7 +681,7 @@ export default function MinisterioLouvorAdmin({ navigation }) {
   const deleteScale = (scale) => {
     Alert.alert(
       "Confirmar Exclusão",
-      `Tem certeza que deseja excluir a escala da banda "${scale.banda.nome}" no evento "${scale.eventName}"?`,
+      `Tem certeza que deseja excluir a escala do evento "${scale.eventName}"?`,
       [
         { text: "Cancelar", style: "cancel" },
         {
@@ -609,7 +694,6 @@ export default function MinisterioLouvorAdmin({ navigation }) {
               const scaleRef = doc(db, "churchBasico", "sistema", "eventos", scale.eventId, "escalas", scale.id);
               await deleteDoc(scaleRef);
 
-              // Decrementar contador de escalas do evento
               const eventRef = doc(db, "churchBasico", "sistema", "eventos", scale.eventId);
               const currentEvent = events.find(e => e.id === scale.eventId);
               const newTotalEscalas = Math.max(0, (currentEvent?.totalEscalas || 1) - 1);
@@ -648,7 +732,7 @@ export default function MinisterioLouvorAdmin({ navigation }) {
     return { total: bandas.length };
   };
 
-  // RENDERIZAÇÃO ATUALIZADA - Membros com card expansível
+  // RENDERIZAÇÃO - Membros (mantida igual)
   const renderMembers = () => {
     const stats = getMembersStats();
     const membersToShow = membersExpanded ? members : members.slice(0, 3);
@@ -672,7 +756,6 @@ export default function MinisterioLouvorAdmin({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* CARD EXPANSÍVEL DE MEMBROS */}
         <View style={styles.membersExpandableCard}>
           <View style={styles.membersCardHeader}>
             <Text style={styles.membersCardTitle}>
@@ -732,6 +815,7 @@ export default function MinisterioLouvorAdmin({ navigation }) {
     );
   };
 
+  // RENDERIZAÇÃO - Bandas (mantida igual)
   const renderBandas = () => {
     const stats = getBandasStats();
 
@@ -888,14 +972,32 @@ export default function MinisterioLouvorAdmin({ navigation }) {
                   </View>
                 )}
 
-                {/* Escalas de Louvor */}
+                {/* Escalas de Louvor - MODIFICADO PARA MÚLTIPLAS BANDAS */}
                 {eventScales[item.id].louvor.length > 0 && (
                   <View style={styles.ministryScalesSection}>
                     <Text style={styles.ministryScalesTitle}>🎵 Louvor</Text>
                     {eventScales[item.id].louvor.map((scale) => (
                       <View key={scale.id} style={styles.scaleDetailItem}>
-                        <Text style={styles.roleDetailText}>Banda: {scale.banda?.nome || "N/A"}</Text>
-                        <Text style={styles.roleDetailText}>Responsável: {scale.banda?.responsavel?.nome || "N/A"}</Text>
+                        {/* NOVO: Verificar se tem múltiplas bandas */}
+                        {scale.bandas && Array.isArray(scale.bandas) && scale.bandas.length > 0 ? (
+                          // Mostrar múltiplas bandas em ordem
+                          scale.bandas.map((banda, index) => (
+                            <View key={`${scale.id}_banda_${banda.id}`} style={styles.bandaOrderItem}>
+                              <Text style={styles.roleDetailText}>
+                                {banda.ordem}ª Banda: {banda.nome}
+                              </Text>
+                              <Text style={styles.roleDetailText}>
+                                Responsável: {banda.responsavel?.nome || "N/A"}
+                              </Text>
+                            </View>
+                          ))
+                        ) : (
+                          // Fallback para escala antiga com uma banda só
+                          <>
+                            <Text style={styles.roleDetailText}>Banda: {scale.banda?.nome || "N/A"}</Text>
+                            <Text style={styles.roleDetailText}>Responsável: {scale.banda?.responsavel?.nome || "N/A"}</Text>
+                          </>
+                        )}
                         {scale.observations && (
                           <Text style={styles.observationsDetailText}>📝 {scale.observations}</Text>
                         )}
@@ -917,7 +1019,7 @@ export default function MinisterioLouvorAdmin({ navigation }) {
     />
   );
 
-  // RENDERIZAÇÃO ATUALIZADA - Escalas com sistema completo
+  // RENDERIZAÇÃO ATUALIZADA - Escalas com sistema de múltiplas bandas
   const renderScales = () => (
     <View style={styles.container}>
       <View style={styles.scalesHeader}>
@@ -972,8 +1074,22 @@ export default function MinisterioLouvorAdmin({ navigation }) {
               </View>
               
               <View style={styles.scaleRoles}>
-                <Text style={styles.roleText}>🎵 Banda: {item.banda.nome}</Text>
-                <Text style={styles.roleText}>👤 Responsável: {item.banda.responsavel.nome}</Text>
+                {/* MODIFICADO: Mostrar múltiplas bandas se existirem */}
+                {item.bandas && Array.isArray(item.bandas) && item.bandas.length > 0 ? (
+                  // Mostrar múltiplas bandas
+                  item.bandas.map((banda, index) => (
+                    <View key={`${item.id}_banda_${banda.id}`} style={styles.bandaListItem}>
+                      <Text style={styles.roleText}>🎵 {banda.ordem}ª Banda: {banda.nome}</Text>
+                      <Text style={styles.roleText}>👤 Responsável: {banda.responsavel.nome}</Text>
+                    </View>
+                  ))
+                ) : (
+                  // Fallback para escala antiga
+                  <>
+                    <Text style={styles.roleText}>🎵 Banda: {item.banda?.nome || "N/A"}</Text>
+                    <Text style={styles.roleText}>👤 Responsável: {item.banda?.responsavel?.nome || "N/A"}</Text>
+                  </>
+                )}
               </View>
 
               {item.observations && (
@@ -1005,6 +1121,117 @@ export default function MinisterioLouvorAdmin({ navigation }) {
       />
     </View>
   );
+
+  // NOVA FUNÇÃO - Renderizar seletor de múltiplas bandas
+  const renderMultiBandaSelector = () => {
+    return (
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Bandas da Escala:</Text>
+        
+        {/* Lista de bandas selecionadas */}
+        {selectedBandas.length > 0 ? (
+          <View style={styles.selectedBandasContainer}>
+            {selectedBandas.map((banda, index) => (
+              <View key={banda.id} style={styles.selectedBandaItem}>
+                <View style={styles.selectedBandaInfo}>
+                  <Text style={styles.selectedBandaName}>
+                    {banda.ordem}ª Banda: {banda.nome}
+                  </Text>
+                  <Text style={styles.selectedBandaResponsavel}>
+                    Responsável: {banda.responsavel.nome}
+                  </Text>
+                </View>
+                
+                <View style={styles.bandaOrderControls}>
+                  {/* Botões de reordenação */}
+                  {index > 0 && (
+                    <TouchableOpacity
+                      style={styles.orderButton}
+                      onPress={() => moveBandaUp(index)}
+                    >
+                      <Ionicons name="chevron-up" size={16} color="#B8986A" />
+                    </TouchableOpacity>
+                  )}
+                  
+                  {index < selectedBandas.length - 1 && (
+                    <TouchableOpacity
+                      style={styles.orderButton}
+                      onPress={() => moveBandaDown(index)}
+                    >
+                      <Ionicons name="chevron-down" size={16} color="#B8986A" />
+                    </TouchableOpacity>
+                  )}
+                  
+                  {/* Botão de remover */}
+                  <TouchableOpacity
+                    onPress={() => removeBandaFromScale(banda.id)}
+                    style={styles.removeBandaButton}
+                  >
+                    <Ionicons name="close" size={16} color="#ff4444" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.noBandasContainer}>
+            <Text style={styles.noBandasText}>Nenhuma banda selecionada</Text>
+            <Text style={styles.noBandasSubText}>
+              Adicione bandas para criar a escala do evento
+            </Text>
+          </View>
+        )}
+
+        {/* Campo de busca para adicionar bandas */}
+        <TextInput
+          style={styles.bandaSearchInput}
+          placeholder="Buscar banda para adicionar..."
+          value={bandaSearchText}
+          onChangeText={searchBandasForScale}
+        />
+
+        {/* Resultados da busca */}
+        {bandaSearchResults.length > 0 && (
+          <View style={styles.bandaSearchResults}>
+            {bandaSearchResults.map((banda) => (
+              <TouchableOpacity
+                key={banda.id}
+                style={styles.bandaSearchResult}
+                onPress={() => addBandaToScale(banda)}
+              >
+                <View style={styles.bandaSearchInfo}>
+                  <Text style={styles.bandaSearchName}>{banda.nome}</Text>
+                  <Text style={styles.bandaSearchResponsavel}>
+                    Responsável: {banda.responsavel.nome}
+                  </Text>
+                </View>
+                <Ionicons name="add-circle-outline" size={20} color="#B8986A" />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* Mensagem quando não encontra bandas */}
+        {bandaSearchText.length >= 2 && bandaSearchResults.length === 0 && (
+          <Text style={styles.noBandaResults}>Nenhuma banda encontrada</Text>
+        )}
+
+        {/* Botão para adicionar banda caso não tenha nenhuma cadastrada */}
+        {bandas.length === 0 && (
+          <TouchableOpacity 
+            style={styles.addBandaButton}
+            onPress={() => {
+              setScaleModalVisible(false);
+              openAddBandaModal();
+            }}
+          >
+            <Ionicons name="add-circle-outline" size={20} color="#B8986A" />
+            <Text style={styles.addBandaButtonText}>Cadastrar primeira banda</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -1345,48 +1572,7 @@ export default function MinisterioLouvorAdmin({ navigation }) {
         </View>
       </Modal>
 
-      {/* Modal de Seleção de Banda */}
-      <Modal
-        visible={bandaSelectionModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setBandaSelectionModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Selecionar Banda</Text>
-              <TouchableOpacity onPress={() => setBandaSelectionModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            <FlatList
-              data={bandas}
-              keyExtractor={(item) => item.id}
-              ListEmptyComponent={() => (
-                <Text style={styles.emptyText}>Nenhuma banda disponível</Text>
-              )}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.eventSelectionItem}
-                  onPress={() => selectBandaForScale(item)}
-                >
-                  <View style={styles.eventSelectionContent}>
-                    <Text style={styles.eventSelectionTitle}>{item.nome}</Text>
-                    <Text style={styles.eventSelectionDate}>
-                      Responsável: {item.responsavel.nome}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color="#B8986A" />
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        </View>
-      </Modal>
-
-      {/* Modal de Criar/Editar Escala */}
+      {/* MODAL MODIFICADO - Criar/Editar Escala com múltiplas bandas */}
       <Modal
         visible={scaleModalVisible}
         animationType="slide"
@@ -1421,14 +1607,8 @@ export default function MinisterioLouvorAdmin({ navigation }) {
                 </View>
               )}
 
-              {selectedBanda && (
-                <View style={styles.eventInfo}>
-                  <Text style={styles.eventInfoTitle}>Banda: {selectedBanda.nome}</Text>
-                  <Text style={styles.eventInfoDetail}>
-                    Responsável: {selectedBanda.responsavel.nome}
-                  </Text>
-                </View>
-              )}
+              {/* NOVO: Seletor de múltiplas bandas */}
+              {renderMultiBandaSelector()}
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Observações:</Text>
@@ -1476,7 +1656,7 @@ export default function MinisterioLouvorAdmin({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  // ESTILOS ATUALIZADOS COM AS MELHORIAS DA COMUNICAÇÃO
+  // ESTILOS EXISTENTES MANTIDOS
   container: {
     flex: 1,
     backgroundColor: "#f5f5f5",
@@ -2199,6 +2379,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
+
   // NOVOS ESTILOS PARA MÚLTIPLAS BANDAS
   selectedBandasContainer: {
     gap: 10,
@@ -2227,36 +2408,44 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#666",
   },
+  bandaOrderControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  orderButton: {
+    padding: 4,
+    borderRadius: 4,
+    backgroundColor: "#fff",
+  },
   removeBandaButton: {
     padding: 4,
+    borderRadius: 4,
+    backgroundColor: "#ffe6e6",
+  },
+  noBandasContainer: {
+    backgroundColor: "#f8f9fa",
+    borderRadius: 8,
+    padding: 20,
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#e9ecef",
+    borderStyle: "dashed",
+    marginBottom: 15,
   },
   noBandasText: {
     textAlign: "center",
     color: "#999",
     fontSize: 14,
-    paddingVertical: 20,
+    fontWeight: "500",
+  },
+  noBandasSubText: {
+    textAlign: "center",
+    color: "#999",
+    fontSize: 12,
+    marginTop: 5,
     fontStyle: "italic",
   },
-  addBandaButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#fff",
-    borderWidth: 2,
-    borderColor: "#B8986A",
-    borderStyle: "dashed",
-    paddingVertical: 12,
-    paddingHorizontal: 15,
-    borderRadius: 8,
-    gap: 8,
-    marginTop: 10,
-  },
-  addBandaButtonText: {
-    color: "#B8986A",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  // ESTILOS PARA SISTEMA DE BUSCA DE BANDAS
   bandaSearchInput: {
     borderWidth: 1,
     borderColor: "#ddd",
@@ -2302,21 +2491,38 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     paddingVertical: 10,
   },
-  noBandasContainer: {
-    backgroundColor: "#f8f9fa",
-    borderRadius: 8,
-    padding: 20,
+  addBandaButton: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
     borderWidth: 2,
-    borderColor: "#e9ecef",
+    borderColor: "#B8986A",
     borderStyle: "dashed",
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    gap: 8,
+    marginTop: 10,
   },
-  noBandasSubText: {
-    textAlign: "center",
-    color: "#999",
-    fontSize: 12,
-    marginTop: 5,
-    fontStyle: "italic",
+  addBandaButtonText: {
+    color: "#B8986A",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  
+  // ESTILOS PARA EXIBIÇÃO DAS BANDAS
+  bandaOrderItem: {
+    marginBottom: 5,
+    paddingBottom: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  bandaListItem: {
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
   },
 });
 

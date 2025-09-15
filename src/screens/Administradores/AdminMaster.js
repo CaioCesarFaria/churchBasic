@@ -13,16 +13,22 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { AuthContext } from "../../context/AuthContext";
 import { signOut } from "firebase/auth";
 import { auth, db } from "../../Firebase/FirebaseConfig";
-import { collection, getDocs, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  deleteDoc,
+  doc,
+  updateDoc,
+} from "firebase/firestore";
 
 export default function AdminMaster({ navigation }) {
   const { user, userData, setUserData } = useContext(AuthContext);
   const [loading, setLoading] = useState(false);
-  
+
   const [membersCount, setMembersCount] = useState(0);
   const [leadersCount, setLeadersCount] = useState(0);
   const [ministeriosCount, setMinisteriosCount] = useState(0);
@@ -42,27 +48,26 @@ export default function AdminMaster({ navigation }) {
   const [showTimePickerEdit, setShowTimePickerEdit] = useState(false);
 
   const handleLogout = async () => {
-    Alert.alert(
-      "Sair",
-      "Tem certeza que deseja sair?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Sair",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await signOut(auth);
-              setUserData(null);
-              navigation.navigate("Início");
-            } catch (error) {
-              console.log("Erro ao sair:", error);
-              Alert.alert("Erro", "Erro ao sair do sistema");
-            }
-          },
+    Alert.alert("Sair", "Tem certeza que deseja sair?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Sair",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await signOut(auth);
+            setUserData(null);
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "HomeTab" }],
+            });
+          } catch (error) {
+            console.log("Erro ao sair:", error);
+            Alert.alert("Erro", "Erro ao sair do sistema");
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const navigateToNewEvent = () => {
@@ -79,8 +84,12 @@ export default function AdminMaster({ navigation }) {
       setLoadingStats(true);
 
       // Membros
-      const membersSnapshot = await getDocs(collection(db, "churchBasico", "users", "members"));
-      const leadersSnapshot = await getDocs(collection(db, "churchBasico", "users", "lideres"));
+      const membersSnapshot = await getDocs(
+        collection(db, "churchBasico", "users", "members")
+      );
+      const leadersSnapshot = await getDocs(
+        collection(db, "churchBasico", "users", "lideres")
+      );
 
       // Atualiza membros e líderes
       setMembersCount(membersSnapshot.size + leadersSnapshot.size);
@@ -88,12 +97,11 @@ export default function AdminMaster({ navigation }) {
 
       // Contar ministérios únicos dos líderes
       const ministeriosSet = new Set();
-      leadersSnapshot.forEach(doc => {
+      leadersSnapshot.forEach((doc) => {
         const data = doc.data();
         if (data.ministerio) ministeriosSet.add(data.ministerio);
       });
       setMinisteriosCount(ministeriosSet.size);
-
     } catch (error) {
       console.log("Erro ao buscar estatísticas:", error);
     } finally {
@@ -105,10 +113,12 @@ export default function AdminMaster({ navigation }) {
   const fetchEventos = async () => {
     try {
       setLoadingEventos(true);
-      const eventosSnapshot = await getDocs(collection(db, "churchBasico", "sistema", "eventos"));
-      
+      const eventosSnapshot = await getDocs(
+        collection(db, "churchBasico", "sistema", "eventos")
+      );
+
       const eventosArray = [];
-      eventosSnapshot.forEach(doc => {
+      eventosSnapshot.forEach((doc) => {
         const data = doc.data();
         if (data.ativo) {
           eventosArray.push({ id: doc.id, ...data });
@@ -116,9 +126,10 @@ export default function AdminMaster({ navigation }) {
       });
 
       // Ordenar por data
-      eventosArray.sort((a, b) => new Date(a.dataCompleta) - new Date(b.dataCompleta));
+      eventosArray.sort(
+        (a, b) => new Date(a.dataCompleta) - new Date(b.dataCompleta)
+      );
       setEventos(eventosArray);
-
     } catch (error) {
       console.log("Erro ao buscar eventos:", error);
     } finally {
@@ -138,7 +149,9 @@ export default function AdminMaster({ navigation }) {
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteDoc(doc(db, "churchBasico", "sistema", "eventos", evento.id));
+              await deleteDoc(
+                doc(db, "churchBasico", "sistema", "eventos", evento.id)
+              );
               Alert.alert("Sucesso", "Evento deletado com sucesso!");
               fetchEventos(); // Recarregar lista
             } catch (error) {
@@ -155,11 +168,11 @@ export default function AdminMaster({ navigation }) {
   const abrirModalEdicao = (evento) => {
     setEventoEditando(evento);
     setNomeEventoEdit(evento.nome);
-    
+
     // Converter strings de data de volta para Date objects
     const dataEvento = new Date(evento.dataCompleta);
     const horarioEvento = new Date(evento.horarioCompleto);
-    
+
     setDataEventoEdit(dataEvento);
     setHorarioEventoEdit(horarioEvento);
     setModalVisible(true);
@@ -175,25 +188,27 @@ export default function AdminMaster({ navigation }) {
     try {
       const eventoAtualizado = {
         nome: nomeEventoEdit.trim(),
-        data: dataEventoEdit.toLocaleDateString('pt-BR', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric'
+        data: dataEventoEdit.toLocaleDateString("pt-BR", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
         }),
-        horario: horarioEventoEdit.toLocaleTimeString('pt-BR', {
-          hour: '2-digit',
-          minute: '2-digit'
+        horario: horarioEventoEdit.toLocaleTimeString("pt-BR", {
+          hour: "2-digit",
+          minute: "2-digit",
         }),
         dataCompleta: dataEventoEdit.toISOString(),
         horarioCompleto: horarioEventoEdit.toISOString(),
       };
 
-      await updateDoc(doc(db, "churchBasico", "sistema", "eventos", eventoEditando.id), eventoAtualizado);
-      
+      await updateDoc(
+        doc(db, "churchBasico", "sistema", "eventos", eventoEditando.id),
+        eventoAtualizado
+      );
+
       Alert.alert("Sucesso", "Evento atualizado com sucesso!");
       setModalVisible(false);
       fetchEventos(); // Recarregar lista
-      
     } catch (error) {
       console.log("Erro ao atualizar evento:", error);
       Alert.alert("Erro", "Erro ao atualizar evento");
@@ -203,13 +218,13 @@ export default function AdminMaster({ navigation }) {
   // Handlers para date/time pickers do modal
   const onDateChangeEdit = (event, selectedDate) => {
     const currentDate = selectedDate || dataEventoEdit;
-    setShowDatePickerEdit(Platform.OS === 'ios');
+    setShowDatePickerEdit(Platform.OS === "ios");
     setDataEventoEdit(currentDate);
   };
 
   const onTimeChangeEdit = (event, selectedTime) => {
     const currentTime = selectedTime || horarioEventoEdit;
-    setShowTimePickerEdit(Platform.OS === 'ios');
+    setShowTimePickerEdit(Platform.OS === "ios");
     setHorarioEventoEdit(currentTime);
   };
 
@@ -220,7 +235,7 @@ export default function AdminMaster({ navigation }) {
 
   // Atualizar eventos quando a tela recebe foco
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
+    const unsubscribe = navigation.addListener("focus", () => {
       fetchEventos();
     });
 
@@ -237,7 +252,7 @@ export default function AdminMaster({ navigation }) {
           </View>
           <Text style={styles.churchText}>CHURCH</Text>
         </View>
-        
+
         <View style={styles.headerRight}>
           <View style={styles.userInfo}>
             <Text style={styles.userName}>
@@ -245,7 +260,7 @@ export default function AdminMaster({ navigation }) {
             </Text>
             <Text style={styles.userType}>Admin Master</Text>
           </View>
-          
+
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={24} color="#B8986A" />
           </TouchableOpacity>
@@ -254,7 +269,7 @@ export default function AdminMaster({ navigation }) {
 
       {/* Admin Action Buttons */}
       <View style={styles.adminButtonsContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.adminButton}
           onPress={navigateToNewEvent}
           disabled={loading}
@@ -263,7 +278,7 @@ export default function AdminMaster({ navigation }) {
           <Text style={styles.adminButtonText}>Cadastrar Evento</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.adminButton}
           onPress={navigateToNewLider}
           disabled={loading}
@@ -284,30 +299,36 @@ export default function AdminMaster({ navigation }) {
 
         {/* Statistics Cards */}
         <View style={styles.statsContainer}>
-          <TouchableOpacity 
-            style={styles.statCard} 
+          <TouchableOpacity
+            style={styles.statCard}
             onPress={() => navigation.navigate("MembersAdm")}
           >
             <Ionicons name="people-outline" size={32} color="#B8986A" />
-            <Text style={styles.statNumber}>{loadingStats ? "--" : membersCount}</Text>
+            <Text style={styles.statNumber}>
+              {loadingStats ? "--" : membersCount}
+            </Text>
             <Text style={styles.statLabel}>Membros</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.statCard} 
+          <TouchableOpacity
+            style={styles.statCard}
             onPress={() => navigation.navigate("MinisteriosAdm")}
           >
             <Ionicons name="business-outline" size={32} color="#B8986A" />
-            <Text style={styles.statNumber}>{loadingStats ? "--" : ministeriosCount}</Text>
+            <Text style={styles.statNumber}>
+              {loadingStats ? "--" : ministeriosCount}
+            </Text>
             <Text style={styles.statLabel}>Ministérios</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.statCard} 
+          <TouchableOpacity
+            style={styles.statCard}
             onPress={() => navigation.navigate("LideresAdm")}
           >
             <Ionicons name="person-outline" size={32} color="#B8986A" />
-            <Text style={styles.statNumber}>{loadingStats ? "--" : leadersCount}</Text>
+            <Text style={styles.statNumber}>
+              {loadingStats ? "--" : leadersCount}
+            </Text>
             <Text style={styles.statLabel}>Líderes</Text>
           </TouchableOpacity>
         </View>
@@ -315,7 +336,7 @@ export default function AdminMaster({ navigation }) {
         {/* Eventos Cadastrados */}
         <View style={styles.eventosContainer}>
           <Text style={styles.sectionTitle}>Eventos Cadastrados</Text>
-          
+
           {loadingEventos ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#B8986A" />
@@ -328,7 +349,11 @@ export default function AdminMaster({ navigation }) {
                   <Text style={styles.eventoNome}>{evento.nome}</Text>
                   <View style={styles.eventoDetalhes}>
                     <View style={styles.eventoDetalhe}>
-                      <Ionicons name="calendar-outline" size={16} color="#666" />
+                      <Ionicons
+                        name="calendar-outline"
+                        size={16}
+                        color="#666"
+                      />
                       <Text style={styles.eventoTexto}>{evento.data}</Text>
                     </View>
                     <View style={styles.eventoDetalhe}>
@@ -337,16 +362,16 @@ export default function AdminMaster({ navigation }) {
                     </View>
                   </View>
                 </View>
-                
+
                 <View style={styles.eventoAcoes}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.editButton}
                     onPress={() => abrirModalEdicao(evento)}
                   >
                     <Ionicons name="pencil" size={16} color="#4CAF50" />
                   </TouchableOpacity>
-                  
-                  <TouchableOpacity 
+
+                  <TouchableOpacity
                     style={styles.deleteButton}
                     onPress={() => deletarEvento(evento)}
                   >
@@ -375,7 +400,7 @@ export default function AdminMaster({ navigation }) {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Editar Evento</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setModalVisible(false)}
                 style={styles.closeButton}
               >
@@ -398,16 +423,16 @@ export default function AdminMaster({ navigation }) {
               {/* Data do Evento */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Data do Evento:</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.dateButton}
                   onPress={() => setShowDatePickerEdit(true)}
                 >
                   <Ionicons name="calendar-outline" size={20} color="#B8986A" />
                   <Text style={styles.dateButtonText}>
-                    {dataEventoEdit.toLocaleDateString('pt-BR', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric'
+                    {dataEventoEdit.toLocaleDateString("pt-BR", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
                     })}
                   </Text>
                 </TouchableOpacity>
@@ -416,15 +441,15 @@ export default function AdminMaster({ navigation }) {
               {/* Horário do Evento */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Horário:</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.dateButton}
                   onPress={() => setShowTimePickerEdit(true)}
                 >
                   <Ionicons name="time-outline" size={20} color="#B8986A" />
                   <Text style={styles.dateButtonText}>
-                    {horarioEventoEdit.toLocaleTimeString('pt-BR', {
-                      hour: '2-digit',
-                      minute: '2-digit'
+                    {horarioEventoEdit.toLocaleTimeString("pt-BR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
                     })}
                   </Text>
                 </TouchableOpacity>
@@ -432,14 +457,14 @@ export default function AdminMaster({ navigation }) {
 
               {/* Botões */}
               <View style={styles.modalButtons}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.cancelButton}
                   onPress={() => setModalVisible(false)}
                 >
                   <Text style={styles.cancelButtonText}>Cancelar</Text>
                 </TouchableOpacity>
-                
-                <TouchableOpacity 
+
+                <TouchableOpacity
                   style={styles.saveButton}
                   onPress={salvarEdicao}
                 >

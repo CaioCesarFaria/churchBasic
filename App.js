@@ -161,6 +161,9 @@ const AppNavigator = () => {
         <Stack.Screen
           name="MinisterioLouvorAdmin"
           component={MinisterioLouvorAdmin}
+          options={{
+            headerShown: false,
+          }}
         />
         <Stack.Screen
           name="MinisterioKidsAdmin"
