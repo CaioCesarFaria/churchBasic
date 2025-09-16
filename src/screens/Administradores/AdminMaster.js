@@ -331,6 +331,15 @@ export default function AdminMaster({ navigation }) {
             </Text>
             <Text style={styles.statLabel}>Líderes</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => navigation.navigate("RelatoriosMinisterios")}
+          >
+            <Ionicons name="analytics-outline" size={32} color="#B8986A" />
+            <Text style={styles.statNumber}>📊</Text>
+            <Text style={styles.statLabel}>Relatórios</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Eventos Cadastrados */}
@@ -598,16 +607,17 @@ const styles = StyleSheet.create({
   },
   statsContainer: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     marginBottom: 30,
+    gap: 10,
   },
   statCard: {
-    flex: 1,
+    width: "48%",
     backgroundColor: "#fff",
     padding: 20,
     borderRadius: 12,
     alignItems: "center",
-    marginHorizontal: 5,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
