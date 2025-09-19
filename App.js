@@ -32,6 +32,7 @@ import PoliticasPrivacidade from "./src/screens/PoliticasPrivacidade";
 import MinisterioConexaoAdmin from "./src/screens/Ministerios/MinisterioConexaoAdmin";
 import RelatoriosMinisterios from "./src/screens/Relatorios/RelatorioMinisterios";
 import MinisterioConexaoRelatorio from "./src/screens/Relatorios/MinisterioConexaoRelatorio";
+import MinisterioMembros from "./src/screens/Ministerios/MinisterioMembros";
 
 const Stack = createNativeStackNavigator();
 
@@ -239,6 +240,15 @@ const AppNavigator = () => {
         <Stack.Screen
           name="MinisterioConexaoRelatorio"
           component={MinisterioConexaoRelatorio}
+          options={{
+            headerShown: false,
+          }}
+        />
+
+        {/* Telas dos MINISTERIOS MEMBORS */}
+        <Stack.Screen
+          name="MinisterioMembros"
+          component={MinisterioMembros}
           options={{
             headerShown: false,
           }}

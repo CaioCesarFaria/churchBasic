@@ -1,3 +1,4 @@
+// Profile.js 
 import React, { useState, useContext, useEffect } from "react";
 import {
   View,
@@ -13,14 +14,15 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { AuthContext } from "../context/AuthContext";
-import { doc, getDoc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, updateDoc, collection, query, where, getDocs, deleteDoc } from "firebase/firestore";
 import { auth, db } from "../Firebase/FirebaseConfig";
-import { updateProfile } from "firebase/auth";
+import { updateProfile, deleteUser, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
 
 export default function ProfileScreen({ navigation }) {
-  const { user, userData, setUserData } = useContext(AuthContext);
+  const { user, userData, setUserData, logout } = useContext(AuthContext);
   const [loading, setLoading] = useState(true);
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [userInfo, setUserInfo] = useState(null);
   const [ministerios, setMinisterios] = useState([]);
   
@@ -33,12 +35,16 @@ export default function ProfileScreen({ navigation }) {
   const [editAnoNascimento, setEditAnoNascimento] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const ProfileMenuItem = ({ iconName, title, onPress, showArrow = true, children }) => (
+  // Estados para exclusão de conta
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const ProfileMenuItem = ({ iconName, title, onPress, showArrow = true, children, danger = false }) => (
     <View>
-      <TouchableOpacity style={styles.menuItem} onPress={onPress}>
+      <TouchableOpacity style={[styles.menuItem, danger && styles.dangerMenuItem]} onPress={onPress}>
         <View style={styles.menuItemLeft}>
-          <Ionicons name={iconName} size={20} color="#B8986A" />
-          <Text style={styles.menuItemText}>{title}</Text>
+          <Ionicons name={iconName} size={20} color={danger ? "#ff4444" : "#B8986A"} />
+          <Text style={[styles.menuItemText, danger && styles.dangerMenuText]}>{title}</Text>
         </View>
         {showArrow && (
           <Ionicons name="chevron-forward" size={20} color="#ccc" />
@@ -70,15 +76,34 @@ export default function ProfileScreen({ navigation }) {
     setEditCelular(formatted);
   };
 
-  // NOVA FUNÇÃO - Buscar ministérios do usuário
+  // FUNÇÃO ATUALIZADA - Buscar TODOS os ministérios do usuário
   const loadUserMinisterios = async (userId) => {
     try {
       const ministeriosEncontrados = [];
       
-      // Lista dos ministérios disponíveis
+      // Lista COMPLETA dos ministérios disponíveis
       const ministeriosDisponiveis = [
         { nome: "Comunicação", path: "comunicacao" },
-        { nome: "Louvor", path: "louvor" }
+        { nome: "Louvor", path: "louvor" },
+        { nome: "Jovens", path: "jovens" },
+        { nome: "Crianças", path: "criancas" },
+        { nome: "Intercessão", path: "intercessao" },
+        { nome: "Evangelismo", path: "evangelismo" },
+        { nome: "Hospitalidade", path: "hospitalidade" },
+        { nome: "Escola Dominical", path: "escolaDominical" },
+        { nome: "Diaconia", path: "diaconia" },
+        { nome: "Células", path: "celulas" },
+        { nome: "Teatro", path: "teatro" },
+        { nome: "Dança", path: "danca" },
+        { nome: "Apoio Técnico", path: "apoioTecnico" },
+        { nome: "Ministério da Família", path: "familia" },
+        { nome: "Terceira Idade", path: "terceiraIdade" },
+        { nome: "Casais", path: "casais" },
+        { nome: "Homens", path: "homens" },
+        { nome: "Mulheres", path: "mulheres" },
+        { nome: "Ministério de Cura e Libertação", path: "curaLibertacao" },
+        { nome: "Batismo", path: "batismo" },
+        { nome: "Recepção", path: "recepcao" }
       ];
       
       // Buscar em cada ministério
@@ -93,7 +118,6 @@ export default function ProfileScreen({ navigation }) {
             "membros"
           );
           
-          // Buscar por userId no campo userId ou por ID do documento
           const querySnapshot = await getDocs(membersRef);
           
           querySnapshot.forEach((doc) => {
@@ -107,7 +131,8 @@ export default function ProfileScreen({ navigation }) {
                 dadosMembresia: {
                   registradoEm: memberData.createdAt,
                   registradoPor: memberData.registeredByName,
-                  status: "Ativo"
+                  status: "Ativo",
+                  docId: doc.id
                 }
               });
             }
@@ -127,7 +152,7 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
-  // Carregar informações do usuário - MODIFICADA
+  // Carregar informações do usuário
   const loadUserInfo = async () => {
     if (!user?.uid) return;
 
@@ -156,7 +181,7 @@ export default function ProfileScreen({ navigation }) {
         setEditAnoNascimento(userData.birthYear || "");
       }
       
-      // NOVA CHAMADA - Buscar ministérios independentemente
+      // Buscar ministérios
       await loadUserMinisterios(user.uid);
       
     } catch (error) {
@@ -236,6 +261,102 @@ export default function ProfileScreen({ navigation }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  // NOVA FUNÇÃO - Excluir conta do usuário
+  const handleDeleteAccount = async () => {
+    if (!confirmPassword.trim()) {
+      Alert.alert("Erro", "Por favor, digite sua senha para confirmar");
+      return;
+    }
+
+    Alert.alert(
+      "DESEJA REALMENTE EXCLUIR SUA CONTA?",
+      "Esta ação é irreversível. Todos os seus dados serão permanentemente excluídos e você será removido de todos os ministérios.",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel"
+        },
+        {
+          text: "EXCLUIR CONTA",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setDeleting(true);
+
+              // Reautenticar o usuário
+              const credential = EmailAuthProvider.credential(
+                user.email,
+                confirmPassword
+              );
+
+              await reauthenticateWithCredential(auth.currentUser, credential);
+
+              // 1. Remover usuário de todos os ministérios
+              for (const ministerio of ministerios) {
+                try {
+                  const memberDocRef = doc(
+                    db,
+                    "churchBasico",
+                    "ministerios",
+                    "conteudo",
+                    ministerio.path,
+                    "membros",
+                    ministerio.dadosMembresia.docId
+                  );
+                  await deleteDoc(memberDocRef);
+                } catch (error) {
+                  console.log(`Erro ao remover do ministério ${ministerio.nome}:`, error);
+                }
+              }
+
+              // 2. Excluir documento do usuário no Firestore
+              let userDocRef = doc(db, "churchBasico", "users", "members", user.uid);
+              let docSnap = await getDoc(userDocRef);
+              
+              if (!docSnap.exists()) {
+                userDocRef = doc(db, "churchBasico", "users", "lideres", user.uid);
+                docSnap = await getDoc(userDocRef);
+              }
+
+              if (docSnap.exists()) {
+                await deleteDoc(userDocRef);
+              }
+
+              // 3. Excluir conta do Firebase Auth
+              await deleteUser(auth.currentUser);
+
+              Alert.alert("Conta Excluída", "Sua conta foi excluída com sucesso.", [
+                {
+                  text: "OK",
+                  onPress: () => {
+                    logout();
+                    navigation.reset({
+                      index: 0,
+                      routes: [{ name: 'Login' }],
+                    });
+                  }
+                }
+              ]);
+
+            } catch (error) {
+              console.error("Erro ao excluir conta:", error);
+              
+              if (error.code === 'auth/wrong-password') {
+                Alert.alert("Erro", "Senha incorreta. Tente novamente.");
+              } else if (error.code === 'auth/too-many-requests') {
+                Alert.alert("Erro", "Muitas tentativas. Tente novamente mais tarde.");
+              } else {
+                Alert.alert("Erro", "Não foi possível excluir a conta. Tente novamente.");
+              }
+            } finally {
+              setDeleting(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   useEffect(() => {
@@ -347,6 +468,15 @@ export default function ProfileScreen({ navigation }) {
               )}
             </View>
           </ProfileMenuItem>
+          
+          {/* Botão Excluir Conta */}
+          <ProfileMenuItem
+            iconName="trash-outline"
+            title="Excluir minha conta"
+            onPress={() => setDeleteModalVisible(true)}
+            showArrow={false}
+            danger={true}
+          />
         </View>
       </ScrollView>
 
@@ -456,6 +586,103 @@ export default function ProfileScreen({ navigation }) {
                 </TouchableOpacity>
               </View>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Exclusão de Conta */}
+      <Modal
+        visible={deleteModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setDeleteModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.deleteModalContent}>
+            <View style={styles.deleteModalHeader}>
+              <View style={styles.dangerIconContainer}>
+                <Ionicons name="warning" size={32} color="#ff4444" />
+              </View>
+              <Text style={styles.deleteModalTitle}>Excluir Conta</Text>
+              <TouchableOpacity 
+                onPress={() => {
+                  setDeleteModalVisible(false);
+                  setConfirmPassword("");
+                }}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.deleteModalBody}>
+              <Text style={styles.deleteWarningText}>
+                Esta ação é irreversível. Ao excluir sua conta:
+              </Text>
+              
+              <View style={styles.deleteWarningList}>
+                <View style={styles.deleteWarningItem}>
+                  <Ionicons name="close-circle" size={16} color="#ff4444" />
+                  <Text style={styles.deleteWarningItemText}>
+                    Todos os seus dados serão permanentemente excluídos
+                  </Text>
+                </View>
+                <View style={styles.deleteWarningItem}>
+                  <Ionicons name="close-circle" size={16} color="#ff4444" />
+                  <Text style={styles.deleteWarningItemText}>
+                    Você será removido de todos os ministérios
+                  </Text>
+                </View>
+                <View style={styles.deleteWarningItem}>
+                  <Ionicons name="close-circle" size={16} color="#ff4444" />
+                  <Text style={styles.deleteWarningItemText}>
+                    Não será possível recuperar a conta
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.passwordInputGroup}>
+                <Text style={styles.passwordLabel}>
+                  Digite sua senha para confirmar:
+                </Text>
+                <TextInput
+                  style={styles.passwordInput}
+                  placeholder="Sua senha atual"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry={true}
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.deleteModalButtons}>
+                <TouchableOpacity 
+                  style={styles.cancelDeleteButton}
+                  onPress={() => {
+                    setDeleteModalVisible(false);
+                    setConfirmPassword("");
+                  }}
+                  disabled={deleting}
+                >
+                  <Text style={styles.cancelDeleteButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.confirmDeleteButton}
+                  onPress={handleDeleteAccount}
+                  disabled={deleting || !confirmPassword.trim()}
+                >
+                  {deleting ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="trash" size={16} color="#fff" />
+                      <Text style={styles.confirmDeleteButtonText}>EXCLUIR CONTA</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
       </Modal>
@@ -593,6 +820,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
   },
+  dangerMenuItem: {
+    borderBottomWidth: 0,
+  },
   menuItemLeft: {
     flexDirection: "row",
     alignItems: "center",
@@ -601,6 +831,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#333",
     marginLeft: 15,
+  },
+  dangerMenuText: {
+    color: "#ff4444",
   },
   ministeriosContainer: {
     paddingHorizontal: 20,
@@ -680,11 +913,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
-  modalTitleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
   modalTitle: {
     fontSize: 20,
     fontWeight: "700",
@@ -698,81 +926,41 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  modalScrollView: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
   modalForm: {
     padding: 20,
     paddingBottom: 40,
   },
-  inputContainer: {
-    marginBottom: 24,
+  inputGroup: {
+    marginBottom: 20,
   },
-  inputLabel: {
-    fontSize: 16,
+  label: {
+    fontSize: 14,
     fontWeight: "600",
     color: "#333",
     marginBottom: 8,
   },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
+  input: {
     backgroundColor: "#f8f9fa",
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e9ecef",
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    minHeight: 50,
-  },
-  inputIcon: {
-    marginRight: 12,
-  },
-  textInput: {
-    flex: 1,
+    paddingHorizontal: 15,
+    paddingVertical: 15,
     fontSize: 16,
-    color: "#333",
-    paddingVertical: 12,
-  },
-  dateContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  dateInputWrapper: {
-    flex: 1,
-    backgroundColor: "#f8f9fa",
-    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#e9ecef",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    minHeight: 50,
-    justifyContent: "center",
+    color: "#333",
   },
-  yearInput: {
-    flex: 1.3,
+  dateRow: {
+    flexDirection: "row",
+    gap: 10,
   },
   dateInput: {
-    fontSize: 16,
-    color: "#333",
-    paddingVertical: 12,
-    fontWeight: "500",
+    flex: 1,
+    textAlign: "center",
   },
-  dateSeparator: {
-    fontSize: 18,
-    color: "#999",
-    fontWeight: "600",
-  },
-  modalFooter: {
+  modalButtons: {
     flexDirection: "row",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
     gap: 12,
+    marginTop: 30,
   },
   cancelButton: {
     flex: 1,
@@ -794,20 +982,136 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    flexDirection: "row",
-    gap: 8,
     shadowColor: "#B8986A",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 4,
   },
-  saveButtonDisabled: {
-    backgroundColor: "#ccc",
-    shadowOpacity: 0,
-    elevation: 0,
-  },
   saveButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  // Estilos para o Modal de Exclusão
+  deleteModalContent: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "80%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  deleteModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  dangerIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#fff2f2",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#ffe6e6",
+  },
+  deleteModalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#ff4444",
+    flex: 1,
+    textAlign: "center",
+    marginHorizontal: 15,
+  },
+  deleteModalBody: {
+    padding: 20,
+  },
+  deleteWarningText: {
+    fontSize: 16,
+    color: "#333",
+    marginBottom: 15,
+    fontWeight: "500",
+  },
+  deleteWarningList: {
+    marginBottom: 25,
+  },
+  deleteWarningItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 10,
+    paddingHorizontal: 5,
+  },
+  deleteWarningItemText: {
+    fontSize: 14,
+    color: "#666",
+    marginLeft: 10,
+    flex: 1,
+    lineHeight: 20,
+  },
+  passwordInputGroup: {
+    marginBottom: 25,
+  },
+  passwordLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 8,
+  },
+  passwordInput: {
+    backgroundColor: "#fff5f5",
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 15,
+    fontSize: 16,
+    borderWidth: 2,
+    borderColor: "#ffcccc",
+    color: "#333",
+  },
+  deleteModalButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  cancelDeleteButton: {
+    flex: 1,
+    backgroundColor: "#f5f5f5",
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelDeleteButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#666",
+  },
+  confirmDeleteButton: {
+    flex: 1,
+    backgroundColor: "#ff4444",
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    shadowColor: "#ff4444",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  confirmDeleteButtonText: {
     fontSize: 16,
     fontWeight: "700",
     color: "#fff",

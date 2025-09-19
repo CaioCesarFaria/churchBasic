@@ -1,5 +1,4 @@
-// Home.js
-// Home.js
+// Home.js - VERSÃO COMPLETA ATUALIZADA
 import React, { useState, useContext, useEffect } from "react";
 import {
   StyleSheet,
@@ -91,6 +90,10 @@ export default function HomeScreen() {
   const [eventosKids, setEventosKids] = useState([]);
   const [versiculoDoDia, setVersiculoDoDia] = useState(null);
   const [loadingEventos, setLoadingEventos] = useState(false);
+  
+  // NOVO: Estado para verificar se o usuário tem ministérios
+  const [hasMinisterios, setHasMinisterios] = useState(false);
+  const [loadingMinisterios, setLoadingMinisterios] = useState(false);
 
   const toggleSection = (section) => {
     setExpandedSections((prev) => ({
@@ -136,6 +139,60 @@ export default function HomeScreen() {
     }
   };
 
+  // NOVA FUNÇÃO: Verificar se o usuário tem ministérios
+  const verificarMinisterios = async () => {
+    if (!user) return;
+    
+    setLoadingMinisterios(true);
+    try {
+      let temMinisterios = false;
+
+      // Verificar ministério de Comunicação
+      const comunicacaoRef = collection(db, "churchBasico", "ministerios", "conteudo", "comunicacao", "membros");
+      const comunicacaoQuery = query(comunicacaoRef, where("userId", "==", user.uid));
+      const comunicacaoSnapshot = await getDocs(comunicacaoQuery);
+      if (!comunicacaoSnapshot.empty) {
+        temMinisterios = true;
+      }
+
+      // Se não encontrou em comunicação, verificar células
+      if (!temMinisterios) {
+        const celulaRef = collection(db, "churchBasico", "ministerios", "conteudo", "celula", "membros");
+        const celulaQuery = query(celulaRef, where("userId", "==", user.uid));
+        const celulaSnapshot = await getDocs(celulaQuery);
+        if (!celulaSnapshot.empty) {
+          temMinisterios = true;
+        }
+      }
+
+      // Se não encontrou ainda, verificar kids
+      if (!temMinisterios) {
+        const kidsRef = collection(db, "churchBasico", "ministerios", "conteudo", "kids", "membros");
+        const kidsQuery = query(kidsRef, where("userId", "==", user.uid));
+        const kidsSnapshot = await getDocs(kidsQuery);
+        if (!kidsSnapshot.empty) {
+          temMinisterios = true;
+        }
+      }
+
+      // Se não encontrou ainda, verificar louvor
+      if (!temMinisterios) {
+        const louvorRef = collection(db, "churchBasico", "ministerios", "conteudo", "louvor", "membros");
+        const louvorQuery = query(louvorRef, where("userId", "==", user.uid));
+        const louvorSnapshot = await getDocs(louvorRef);
+        if (!louvorSnapshot.empty) {
+          temMinisterios = true;
+        }
+      }
+
+      setHasMinisterios(temMinisterios);
+    } catch (error) {
+      console.log("Erro ao verificar ministérios:", error);
+    } finally {
+      setLoadingMinisterios(false);
+    }
+  };
+
   useEffect(() => {
     selecionarVersiculoDoDia();
     carregarEventosKids();
@@ -169,6 +226,11 @@ export default function HomeScreen() {
               setUserRole(data.userType);
               setAdminPageRoute(null);
               console.log("userRole definido para:", data.userType);
+              
+              // NOVO: Verificar ministérios se for membro
+              if (data.userType === "member") {
+                await verificarMinisterios();
+              }
             } else {
               console.log("Usuário não encontrado em lideres nem members.");
               setUserRole(null);
@@ -201,6 +263,11 @@ export default function HomeScreen() {
 
   const handlePainelAdministrativo = () => {
     navigation.navigate("AdminMaster");
+  };
+
+  // NOVA FUNÇÃO: Navegar para a página de ministérios do membro
+  const handleVerMinisterios = () => {
+    navigation.navigate("MinisterioMembros");
   };
 
   const SectionHeader = ({ title, section, onToggle }) => (
@@ -251,6 +318,16 @@ export default function HomeScreen() {
                 <TouchableOpacity style={styles.adminButton} onPress={handleGerenciarMinisterios}>
                   <Ionicons name="settings-outline" size={20} color="#fff" style={styles.adminIcon} />
                   <Text style={styles.adminButtonText}>GERENCIAR MINISTÉRIO</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* NOVO: Botão para Membros que participam de ministérios */}
+            {userRole === "member" && hasMinisterios && !loadingMinisterios && (
+              <View style={styles.adminSection}>
+                <TouchableOpacity style={styles.memberButton} onPress={handleVerMinisterios}>
+                  <Ionicons name="star-outline" size={20} color="#fff" style={styles.adminIcon} />
+                  <Text style={styles.adminButtonText}>VER SEUS MINISTÉRIOS</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -484,6 +561,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#007aff', // Cor diferente para destacar o AdminMaster
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  // NOVO: Estilo para o botão de membros
+  memberButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FF6B35', // Cor laranja para membros
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
