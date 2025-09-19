@@ -1,4 +1,4 @@
-// MembersReportsTabs.js
+// MembersReportsTabs.js - COM BOTÃO ENVIAR
 import React from "react";
 import {
   View,
@@ -22,6 +22,7 @@ const MembersReportsTabs = ({
   toggleRelatorioExpansion,
   canManageCelulas,
   canViewReports,
+  navigateToRelatoriosPastor, // Nova prop
 }) => {
   const renderMembros = () => {
     const membersToShow = membersExpanded ? members : members.slice(0, 3);
@@ -132,6 +133,15 @@ const MembersReportsTabs = ({
               <Text style={styles.statLabel}>Total de Relatórios</Text>
             </View>
           </View>
+
+          {/* NOVO BOTÃO: Enviar Relatório ao Pastor */}
+          <TouchableOpacity 
+            style={styles.sendToPastorButton} 
+            onPress={navigateToRelatoriosPastor}
+          >
+            <Ionicons name="send" size={20} color="#fff" />
+            <Text style={styles.sendToPastorButtonText}>Enviar Relatório ao Pastor</Text>
+          </TouchableOpacity>
         </View>
 
         {Object.keys(relatoriosGrouped).length > 0 ? (
@@ -262,6 +272,28 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  // NOVO ESTILO: Botão Enviar ao Pastor
+  sendToPastorButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#4A90E2",
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    marginTop: 10,
+  },
+  sendToPastorButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
   },
   membersExpandableCard: {
     backgroundColor: "#fff",

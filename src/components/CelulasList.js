@@ -1,4 +1,4 @@
-// CelulasList.js
+// CelulasList.js - CORRIGIDO
 import React from "react";
 import {
   View,
@@ -18,6 +18,7 @@ const CelulasList = ({
   setExpandedCelulas,
   canManageCelulas,
   canCreateReports,
+  isMember, // Nova prop para identificar membros
   openAddModal,
   openEditModal,
   openReportModal,
@@ -35,7 +36,7 @@ const CelulasList = ({
 
   return (
     <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-      {/* BOTÃO PARA ADMINS CADASTRAREM CÉLULAS */}
+      {/* BOTÃO NOVA CÉLULA - APENAS PARA ADMINS */}
       {canManageCelulas && (
         <TouchableOpacity style={styles.addButton} onPress={openAddModal}>
           <Ionicons name="add-circle" size={24} color="#fff" />
@@ -43,13 +44,13 @@ const CelulasList = ({
         </TouchableOpacity>
       )}
 
-      {/* BOTÃO PARA TODOS GERAREM RELATÓRIO */}
-      {canCreateReports && (
+      {/* BOTÃO RELATÓRIO - APENAS PARA MEMBROS */}
+      {canCreateReports && isMember && (
         <TouchableOpacity 
           style={styles.generateReportButton} 
           onPress={() => {
             if (celulas.length === 0) {
-              Alert.alert("Aviso", "Não há células cadastradas para gerar relatório.");
+              Alert.alert("Aviso", "Você não é responsável por nenhuma célula.");
               return;
             }
             if (celulas.length === 1) {
@@ -63,7 +64,9 @@ const CelulasList = ({
           }}
         >
           <Ionicons name="document-text" size={24} color="#fff" />
-          <Text style={styles.generateReportButtonText}>Gerar Relatório da Célula</Text>
+          <Text style={styles.generateReportButtonText}>
+            Gerar Relatório da Minha Célula
+          </Text>
         </TouchableOpacity>
       )}
 
@@ -74,7 +77,7 @@ const CelulasList = ({
         <View style={styles.cardHeader}>
           <Ionicons name="people-outline" size={24} color="#B8986A" />
           <Text style={styles.cardTitle}>
-            Células Cadastradas ({celulas.length})
+            {isMember ? "Minha Célula" : `Células Cadastradas (${celulas.length})`}
           </Text>
           <Ionicons 
             name={expandedCelulas ? "chevron-up" : "chevron-down"} 
@@ -105,8 +108,8 @@ const CelulasList = ({
                     )}
                   </View>
                   <View style={styles.celulaActions}>
-                    {/* BOTÃO DE RELATÓRIO PARA TODOS */}
-                    {canCreateReports && (
+                    {/* BOTÃO DE RELATÓRIO - APENAS PARA MEMBROS */}
+                    {canCreateReports && isMember && (
                       <TouchableOpacity
                         style={[styles.actionButton, styles.reportButton]}
                         onPress={() => openReportModal(celula)}
@@ -137,7 +140,10 @@ const CelulasList = ({
               ))
             ) : (
               <Text style={styles.noCelulasText}>
-                Nenhuma célula cadastrada ainda.
+                {isMember ? 
+                  "Você não é responsável por nenhuma célula ainda." :
+                  "Nenhuma célula cadastrada ainda."
+                }
               </Text>
             )}
           </View>
@@ -151,7 +157,9 @@ const CelulasList = ({
             <View style={styles.statItem}>
               <Ionicons name="people" size={20} color="#B8986A" />
               <Text style={styles.statNumber}>{celulas.length}</Text>
-              <Text style={styles.statLabel}>Células Ativas</Text>
+              <Text style={styles.statLabel}>
+                {isMember ? "Minha Célula" : "Células Ativas"}
+              </Text>
             </View>
           </View>
         </View>

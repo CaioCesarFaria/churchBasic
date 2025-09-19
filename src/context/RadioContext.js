@@ -1,7 +1,7 @@
-// RadioContext.js
+// RadioContext.js - VERSÃO SIMPLIFICADA SEM NOTIFICAÇÕES
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
-import { Alert, AppState } from 'react-native';
+import { Alert, AppState, Platform } from 'react-native';
 
 const RadioContext = createContext();
 
@@ -19,6 +19,7 @@ export const RadioProvider = ({ children }) => {
   const [volume, setVolume] = useState(1.0);
   const [error, setError] = useState(null);
   const [showMiniPlayer, setShowMiniPlayer] = useState(false);
+  const [playerReady, setPlayerReady] = useState(false);
   
   const radioInfo = {
     name: "Rádio Abba Church Varginha",
@@ -30,78 +31,207 @@ export const RadioProvider = ({ children }) => {
     type: "WebRádio",
   };
 
-  // Criar o player de áudio usando o hook do expo-audio
-  const player = useAudioPlayer(radioInfo.streamUrl);
-  const appState = useRef(AppState.currentState);
+  const player = useAudioPlayer();
+  const appStateRef = useRef(AppState.currentState);
+  const streamUrlRef = useRef(null);
 
-  // Configurar o modo de áudio ao inicializar
+  // Configuração inicial do sistema
   useEffect(() => {
-    const setupAudioMode = async () => {
+    const configurarSistema = async () => {
       try {
+        if (Platform.OS === 'ios') {
+          await setAudioModeAsync({
+            playsInSilentMode: true,
+            shouldPlayInBackground: true,
+            allowsRecording: false,
+            interruptionMode: 'duckOthers',
+            shouldRouteThroughEarpiece: false,
+            category: 'playback',
+            mode: 'default',
+            categoryOptions: ['mixWithOthers', 'duckOthers'],
+            iosCategory: 'AVAudioSessionCategoryPlayback',
+            iosMode: 'AVAudioSessionModeDefault',
+            iosCategoryOptions: [
+              'AVAudioSessionCategoryOptionMixWithOthers',
+              'AVAudioSessionCategoryOptionDuckOthers'
+            ]
+          });
+          console.log("✅ iOS: Configuração de áudio background aplicada");
+        } else {
+          await setAudioModeAsync({
+            playsInSilentMode: true,
+            shouldPlayInBackground: true,
+            allowsRecording: false,
+            interruptionMode: 'duckOthers',
+            shouldRouteThroughEarpiece: false,
+          });
+          console.log("✅ Android: Configuração de áudio background aplicada");
+        }
+        
+        setPlayerReady(true);
+      } catch (err) {
+        console.error("❌ Erro na configuração inicial:", err);
+        setPlayerReady(true); // Mesmo com erro, permitir uso
+      }
+    };
+
+    configurarSistema();
+  }, []);
+
+  // Monitor de estado do app
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState) => {
+      const prevAppState = appStateRef.current;
+      appStateRef.current = nextAppState;
+
+      console.log(`📱 App state: ${prevAppState} → ${nextAppState}`);
+
+      if (Platform.OS === 'ios') {
+        if (nextAppState === 'background' && isPlaying) {
+          console.log("🎵 iOS: Áudio continua em background");
+          // Verificar se o player ainda está tocando
+          setTimeout(() => {
+            if (streamUrlRef.current && player && !player.playing) {
+              console.log("🔄 iOS: Tentando reativar player");
+              player.play().catch(console.error);
+            }
+          }, 1000);
+        } else if (nextAppState === 'active') {
+          console.log("📱 iOS: App voltou para foreground");
+          // Sincronizar estado
+          if (player && player.playing && !player.paused) {
+            setIsPlaying(true);
+            setShowMiniPlayer(true);
+          }
+        }
+      } else {
+        if (nextAppState === 'background' && isPlaying) {
+          console.log("🤖 Android: App em background - áudio deve continuar");
+        } else if (nextAppState === 'active') {
+          console.log("🤖 Android: App voltou para foreground");
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, [isPlaying, player]);
+
+  // Configuração do player
+  const setupPlayer = async () => {
+    if (!radioInfo.streamUrl || !playerReady) return;
+
+    try {
+      console.log(`🎵 Configurando stream: ${radioInfo.name}`);
+      
+      // Re-configurar áudio antes de cada stream (especialmente importante no iOS)
+      if (Platform.OS === 'ios') {
         await setAudioModeAsync({
           playsInSilentMode: true,
           shouldPlayInBackground: true,
           allowsRecording: false,
+          interruptionMode: 'duckOthers',
+          shouldRouteThroughEarpiece: false,
+          category: 'playback',
+          mode: 'default',
+          categoryOptions: ['mixWithOthers', 'duckOthers'],
+          iosCategory: 'AVAudioSessionCategoryPlayback',
+          iosMode: 'AVAudioSessionModeDefault',
+          iosCategoryOptions: [
+            'AVAudioSessionCategoryOptionMixWithOthers',
+            'AVAudioSessionCategoryOptionDuckOthers'
+          ]
         });
-      } catch (error) {
-        console.log('Erro ao configurar modo de áudio:', error);
       }
-    };
+      
+      // Configurar stream com metadados para Control Center (iOS)
+      const streamConfig = { 
+        uri: radioInfo.streamUrl,
+        metadata: {
+          title: radioInfo.name || "Rádio Abba Church",
+          artist: `${radioInfo.city || ''}-${radioInfo.state || ''}`.replace(/^-|-$/g, '') || "Varginha-MG",
+          albumArtist: "Abba Church",
+          album: "Rádio Cristã",
+          genre: radioInfo.category || "gospel",
+        }
+      };
+      
+      // Parar stream anterior se necessário
+      if (player.playing) {
+        player.pause();
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      // Configurar novo stream
+      player.replace(streamConfig);
+      streamUrlRef.current = radioInfo.streamUrl;
+      player.volume = volume;
+      
+      console.log(`✅ Stream configurado: ${radioInfo.name}`);
+      
+    } catch (err) {
+      console.error("❌ Erro ao configurar player:", err);
+      setError('Erro ao configurar stream de áudio');
+    }
+  };
 
-    setupAudioMode();
-  }, []);
-
-  // Monitorar mudanças no estado do app (background/foreground)
+  // Monitor do player
   useEffect(() => {
-    const handleAppStateChange = (nextAppState) => {
-      if (
-        appState.current.match(/inactive|background/) &&
-        nextAppState === 'active'
-      ) {
-        // App voltou para o foreground
-        console.log('App voltou ao foreground');
-      }
-      appState.current = nextAppState;
-    };
-
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    if (!player || !playerReady) return;
     
-    return () => subscription?.remove();
-  }, []);
+    const checkPlayerState = () => {
+      const playerIsPlaying = player.playing && !player.paused;
+      
+      if (playerIsPlaying !== isPlaying) {
+        setIsPlaying(playerIsPlaying);
+        console.log(`🎵 Estado do player: ${playerIsPlaying ? 'TOCANDO' : 'PARADO'}`);
+      }
 
-  // Monitorar o estado do player
-  useEffect(() => {
-    const updatePlayingState = () => {
-      setIsPlaying(player.playing);
-      setIsLoading(player.isBuffering);
+      setIsLoading(player.isBuffering || false);
     };
-
-    // Verificar estado inicial
-    updatePlayingState();
-
-    // Configurar listener para mudanças de estado
-    const interval = setInterval(updatePlayingState, 1000);
-
+    
+    checkPlayerState();
+    const interval = setInterval(checkPlayerState, 2000);
     return () => clearInterval(interval);
-  }, [player.playing, player.isBuffering]);
+  }, [player.playing, player.paused, player.isBuffering, isPlaying, playerReady]);
 
-  // Função para iniciar a reprodução
+  // Funções de controle
   const playRadio = async () => {
     try {
       setIsLoading(true);
       setError(null);
       
-      if (!player.isLoaded) {
-        // Se ainda não carregou, aguardar um pouco
+      if (!playerReady) {
+        console.log("⏳ Aguardando player ficar pronto...");
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
-      
-      await player.play();
-      setIsPlaying(true);
-      setShowMiniPlayer(true);
-      
+
+      await setupPlayer();
+
+      if (player && playerReady) {
+        // iOS: Garantir configuração antes de tocar
+        if (Platform.OS === 'ios') {
+          await setAudioModeAsync({
+            playsInSilentMode: true,
+            shouldPlayInBackground: true,
+            category: 'playback',
+            categoryOptions: ['mixWithOthers', 'duckOthers'],
+            iosCategory: 'AVAudioSessionCategoryPlayback',
+            iosCategoryOptions: [
+              'AVAudioSessionCategoryOptionMixWithOthers',
+              'AVAudioSessionCategoryOptionDuckOthers'
+            ]
+          });
+        }
+        
+        await player.play();
+        setIsPlaying(true);
+        setShowMiniPlayer(true);
+        
+        console.log("▶️ PLAY executado - Background ativo");
+      }
     } catch (error) {
-      console.log('Erro ao reproduzir rádio:', error);
+      console.error("❌ Erro ao reproduzir rádio:", error);
       setError('Não foi possível conectar à rádio. Verifique sua conexão.');
       Alert.alert(
         'Erro de Conexão',
@@ -113,48 +243,56 @@ export const RadioProvider = ({ children }) => {
     }
   };
 
-  // Função para pausar a reprodução
-  const pauseRadio = () => {
+  const pauseRadio = async () => {
     try {
-      player.pause();
-      setIsPlaying(false);
-    } catch (error) {
-      console.log('Erro ao pausar rádio:', error);
+      if (player && playerReady) {
+        player.pause();
+        setIsPlaying(false);
+        console.log("⏸️ PAUSE executado");
+      }
+    } catch (err) {
+      console.error("❌ Erro ao pausar rádio:", err);
     }
   };
 
-  // Função para parar completamente
-  const stopRadio = () => {
+  const stopRadio = async () => {
     try {
-      player.pause();
+      if (player) {
+        player.pause();
+      }
+      
       setIsPlaying(false);
       setShowMiniPlayer(false);
-    } catch (error) {
-      console.log('Erro ao parar rádio:', error);
+      streamUrlRef.current = null;
+      
+      console.log("⏹️ Player parado completamente");
+    } catch (err) {
+      console.error("❌ Erro ao parar:", err);
     }
   };
 
-  // Função para alternar play/pause
   const togglePlayback = async () => {
+    console.log(`🔄 Toggle play - Estado atual: ${isPlaying}`);
+    
     if (isPlaying) {
-      pauseRadio();
+      await pauseRadio();
     } else {
       await playRadio();
     }
   };
 
-  // Função para ajustar volume
   const adjustVolume = (newVolume) => {
     try {
       const clampedVolume = Math.max(0, Math.min(1, newVolume));
-      player.volume = clampedVolume;
+      if (player && playerReady) {
+        player.volume = clampedVolume;
+      }
       setVolume(clampedVolume);
     } catch (error) {
       console.log('Erro ao ajustar volume:', error);
     }
   };
 
-  // Função para mostrar/esconder mini player
   const toggleMiniPlayer = () => {
     setShowMiniPlayer(!showMiniPlayer);
   };
@@ -167,6 +305,7 @@ export const RadioProvider = ({ children }) => {
     error,
     showMiniPlayer,
     radioInfo,
+    playerReady,
     
     // Funções de controle
     playRadio,
@@ -176,7 +315,10 @@ export const RadioProvider = ({ children }) => {
     adjustVolume,
     toggleMiniPlayer,
     
-    // Player object (caso seja necessário acesso direto)
+    // Aliases para compatibilidade
+    setVolume: adjustVolume,
+    
+    // Player object
     player,
   };
 

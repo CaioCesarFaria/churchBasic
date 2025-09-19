@@ -1,4 +1,4 @@
-// MinisterioCelulaAdmin.js - ARQUIVO COMPLETO REFATORADO
+// MinisterioCelulaAdmin.js - COM BOTÃO ENVIAR RELATÓRIO
 import React, { useState, useEffect, useContext } from "react";
 import {
   View,
@@ -74,12 +74,13 @@ export default function MinisterioCelulaAdmin({ navigation, route }) {
     motivosOracao: "",
   });
 
-  // PERMISSÕES CORRIGIDAS
-  const userRole = route?.params?.userRole || "membro";
-  const isAdmin = userRole === "admin" || userRole === "responsavel" || userRole === "lider";
-  const canManageCelulas = isAdmin; // Apenas admins podem gerenciar células
-  const canViewReports = isAdmin; // Apenas admins podem ver relatórios
-  const canCreateReports = true; // TODOS podem criar relatórios
+  // PERMISSÕES CORRIGIDAS - BASEADAS NO userType DO FIREBASE
+  const userType = userData?.userType || "member"; // Pega do Firebase
+  const isAdmin = userType === "admin" || userType === "adminMaster";
+  const isMember = userType === "member";
+  const canManageCelulas = isAdmin; // Apenas admin e adminMaster podem gerenciar
+  const canViewReports = isAdmin; // Apenas admin e adminMaster podem ver relatórios
+  const canCreateReports = isMember; // Apenas MEMBERS criam relatórios (para o pastor)
 
   const userName = userData?.name || user?.displayName || "Usuário";
 
@@ -88,13 +89,38 @@ export default function MinisterioCelulaAdmin({ navigation, route }) {
     loadAllData();
   }, []);
 
+  // Função para carregar apenas a célula que o membro é responsável
+  const loadCelulaDoMembro = async () => {
+    if (!isMember) return;
+    
+    try {
+      const celulasRef = collection(db, "churchBasico", "ministerios", "conteudo", "celula", "celulas");
+      const querySnapshot = await getDocs(celulasRef);
+      
+      const celulasData = [];
+      querySnapshot.forEach((doc) => {
+        const celulaData = { id: doc.id, ...doc.data() };
+        // Filtra apenas células onde o usuário é responsável
+        if (celulaData.responsavel?.userId === user.uid) {
+          celulasData.push(celulaData);
+        }
+      });
+      
+      setCelulas(celulasData);
+    } catch (error) {
+      Alert.alert("Erro", "Não foi possível carregar sua célula");
+    }
+  };
+
   const loadAllData = async () => {
     setLoading(true);
     try {
-      // Sempre carrega células para todos
-      await loadCelulas();
-      
-      if (isAdmin) {
+      if (isMember) {
+        // Se é membro, carrega apenas a célula que ele é responsável
+        await loadCelulaDoMembro();
+      } else if (isAdmin) {
+        // Se é admin, carrega todas as células e dados completos
+        await loadCelulas();
         await Promise.all([loadMembers(), loadRelatorios()]);
       }
     } catch (error) {
@@ -373,11 +399,12 @@ export default function MinisterioCelulaAdmin({ navigation, route }) {
       const relatorioRef = doc(db, "churchBasico", "ministerios", "conteudo", "celula", "relatorios", relatorioId);
 
       await setDoc(relatorioRef, relatorioData);
-      Alert.alert("Sucesso", "Relatório enviado com sucesso!");
+      Alert.alert("Sucesso", "Relatório enviado com sucesso para o pastor!");
 
       setReportModalVisible(false);
       resetRelatorioForm();
       
+      // Atualizar dados se for admin
       if (isAdmin) {
         await loadRelatorios();
       }
@@ -533,6 +560,11 @@ export default function MinisterioCelulaAdmin({ navigation, route }) {
     }));
   };
 
+  // NOVA FUNÇÃO: Navegar para relatórios do pastor
+  const navigateToRelatoriosPastor = () => {
+    navigation.navigate("MinisterioCelulaRelatorio");
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -544,7 +576,7 @@ export default function MinisterioCelulaAdmin({ navigation, route }) {
           <Ionicons name="chevron-back" size={24} color="#666" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          Células - {canManageCelulas ? "Admin" : "Membro"}
+          Células - {isMember ? "Membro" : (isAdmin ? "Admin" : "Usuário")}
         </Text>
         <Text style={styles.leaderName}>{userName}</Text>
       </View>
@@ -554,26 +586,26 @@ export default function MinisterioCelulaAdmin({ navigation, route }) {
         <DisplayUser userName={userName} />
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === "celulas" && styles.activeTab]}
-          onPress={() => setActiveTab("celulas")}
-        >
-          <Ionicons 
-            name="people" 
-            size={18} 
-            color={activeTab === "celulas" ? "#B8986A" : "#666"} 
-          />
-          <Text style={[
-            styles.tabText, 
-            activeTab === "celulas" && styles.activeTabText
-          ]}>
-            Células
-          </Text>
-        </TouchableOpacity>
+      {/* Tabs - Mostrar apenas para Admins */}
+      {isAdmin && (
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === "celulas" && styles.activeTab]}
+            onPress={() => setActiveTab("celulas")}
+          >
+            <Ionicons 
+              name="people" 
+              size={18} 
+              color={activeTab === "celulas" ? "#B8986A" : "#666"} 
+            />
+            <Text style={[
+              styles.tabText, 
+              activeTab === "celulas" && styles.activeTabText
+            ]}>
+              Células
+            </Text>
+          </TouchableOpacity>
 
-        {canManageCelulas && (
           <TouchableOpacity
             style={[styles.tab, activeTab === "membros" && styles.activeTab]}
             onPress={() => setActiveTab("membros")}
@@ -590,9 +622,7 @@ export default function MinisterioCelulaAdmin({ navigation, route }) {
               Membros
             </Text>
           </TouchableOpacity>
-        )}
 
-        {canViewReports && (
           <TouchableOpacity
             style={[styles.tab, activeTab === "relatorios" && styles.activeTab]}
             onPress={() => setActiveTab("relatorios")}
@@ -609,11 +639,11 @@ export default function MinisterioCelulaAdmin({ navigation, route }) {
               Relatórios
             </Text>
           </TouchableOpacity>
-        )}
-      </View>
+        </View>
+      )}
 
       {/* Content */}
-      {activeTab === "celulas" && (
+      {(activeTab === "celulas" || isMember) && (
         <CelulasList
           celulas={celulas}
           loading={loading}
@@ -621,6 +651,7 @@ export default function MinisterioCelulaAdmin({ navigation, route }) {
           setExpandedCelulas={setExpandedCelulas}
           canManageCelulas={canManageCelulas}
           canCreateReports={canCreateReports}
+          isMember={isMember}
           openAddModal={openAddModal}
           openEditModal={openEditModal}
           openReportModal={openReportModal}
@@ -628,19 +659,23 @@ export default function MinisterioCelulaAdmin({ navigation, route }) {
         />
       )}
 
-      <MembersReportsTabs
-        activeTab={activeTab}
-        members={members}
-        membersExpanded={membersExpanded}
-        setMembersExpanded={setMembersExpanded}
-        openAddMemberModal={openAddMemberModal}
-        deleteMember={deleteMember}
-        relatorios={relatorios}
-        relatoriosExpanded={relatoriosExpanded}
-        toggleRelatorioExpansion={toggleRelatorioExpansion}
-        canManageCelulas={canManageCelulas}
-        canViewReports={canViewReports}
-      />
+      {isAdmin && (
+        <MembersReportsTabs
+          activeTab={activeTab}
+          members={members}
+          membersExpanded={membersExpanded}
+          setMembersExpanded={setMembersExpanded}
+          openAddMemberModal={openAddMemberModal}
+          deleteMember={deleteMember}
+          relatorios={relatorios}
+          relatoriosExpanded={relatoriosExpanded}
+          toggleRelatorioExpansion={toggleRelatorioExpansion}
+          canManageCelulas={canManageCelulas}
+          canViewReports={canViewReports}
+          // NOVA PROP: Função para navegar aos relatórios do pastor
+          navigateToRelatoriosPastor={navigateToRelatoriosPastor}
+        />
+      )}
 
       {/* Modals */}
       <CelulaModals

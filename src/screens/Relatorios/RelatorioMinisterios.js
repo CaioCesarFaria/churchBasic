@@ -1,4 +1,4 @@
-// RelatoriosMinisterios.js - Lista de Relatórios dos Ministérios
+// RelatoriosMinisterios.js - ATUALIZADO
 import React, { useState, useEffect, useContext } from "react";
 import {
   View,
@@ -16,108 +16,148 @@ import { db } from "../../Firebase/FirebaseConfig";
 import {
   collection,
   getDocs,
-  query,
 } from "firebase/firestore";
 
-// Lista de ministérios disponíveis com suas informações
-const MINISTERIOS_DISPONIVEIS = [
-  {
-    id: "comunicacao",
+// Configuração dos ministérios com suas informações
+const MINISTERIOS_CONFIG = {
+  comunicacao: {
     nome: "Comunicação",
     descricao: "Som, Iluminação, Slides e Streaming",
     icon: "megaphone-outline",
     color: "#3498db",
     relatorio: "MinisterioComunicacaoRelatorio"
   },
-  {
-    id: "conexao", 
+  conexao: {
     nome: "Conexão",
     descricao: "Acolhimento e Visitantes",
     icon: "people-outline",
     color: "#e74c3c",
     relatorio: "MinisterioConexaoRelatorio"
   },
-  {
-    id: "louvor",
+  louvor: {
     nome: "Louvor",
     descricao: "Ministério de Música e Adoração",
     icon: "musical-notes-outline",
     color: "#f39c12",
     relatorio: "MinisterioLouvorRelatorio"
   },
-  {
-    id: "infantil",
-    nome: "Infantil", 
+  infantil: {
+    nome: "Infantil",
     descricao: "Ministério com Crianças",
     icon: "happy-outline",
     color: "#9b59b6",
     relatorio: "MinisterioInfantilRelatorio"
   },
-  {
-    id: "adolescentes",
+  adolescentes: {
     nome: "Adolescentes",
-    descricao: "Ministério com Teens", 
+    descricao: "Ministério com Teens",
     icon: "game-controller-outline",
     color: "#1abc9c",
     relatorio: "MinisterioAdolescentesRelatorio"
   },
-  {
-    id: "jovens",
+  jovens: {
     nome: "Jovens",
     descricao: "Ministério com Jovens e Adultos",
     icon: "accessibility-outline",
     color: "#e67e22",
     relatorio: "MinisterioJovensRelatorio"
+  },
+  celula: {
+    nome: "Células",
+    descricao: "Grupos de Células",
+    icon: "home-outline",
+    color: "#B8986A",
+    relatorio: "MinisterioCelulaRelatorio"
   }
-];
+};
 
 export default function RelatoriosMinisterios({ navigation }) {
   const { user, userData } = useContext(AuthContext);
   const [loading, setLoading] = useState(false);
+  const [ministeriosAtivos, setMinisteriosAtivos] = useState([]);
   const [ministeriosStats, setMinisteriosStats] = useState({});
 
   const userName = userData?.name || user?.displayName || "Pastor";
 
-  // Carregar estatísticas básicas dos ministérios
-  const loadMinisteriosStats = async () => {
+  // Verificar quais ministérios existem no Firebase
+  const verificarMinisteriosExistentes = async () => {
     setLoading(true);
     try {
+      const ministeriosEncontrados = [];
       const stats = {};
-      
-      // Para cada ministério, buscar dados básicos
-      for (const ministerio of MINISTERIOS_DISPONIVEIS) {
+
+      for (const [ministerioId, config] of Object.entries(MINISTERIOS_CONFIG)) {
         try {
-          // Buscar membros do ministério
-          const membrosRef = collection(db, "churchBasico", "ministerios", "conteudo", ministerio.id, "membros");
+          // Verificar se existe pasta do ministério
+          const membrosRef = collection(db, "churchBasico", "ministerios", "conteudo", ministerioId, "membros");
           const membrosSnapshot = await getDocs(membrosRef);
           
-          // Buscar visitantes (só para conexão)
           let visitantesCount = 0;
-          if (ministerio.id === "conexao") {
-            const visitantesRef = collection(db, "churchBasico", "ministerios", "conteudo", "conexao", "visitantes");
-            const visitantesSnapshot = await getDocs(visitantesRef);
-            visitantesCount = visitantesSnapshot.size;
+          let relatoriosCount = 0;
+
+          // Para conexão, buscar visitantes
+          if (ministerioId === "conexao") {
+            try {
+              const visitantesRef = collection(db, "churchBasico", "ministerios", "conteudo", "conexao", "visitantes");
+              const visitantesSnapshot = await getDocs(visitantesRef);
+              visitantesCount = visitantesSnapshot.size;
+            } catch (error) {
+              console.log(`Erro ao carregar visitantes de ${ministerioId}:`, error);
+            }
+
+            // Buscar relatórios de conexão
+            try {
+              const relatoriosRef = collection(db, "churchBasico", "ministerios", "conteudo", "conexao", "RelatorioConexao");
+              const relatoriosSnapshot = await getDocs(relatoriosRef);
+              relatoriosCount = relatoriosSnapshot.size;
+            } catch (error) {
+              console.log(`Erro ao carregar relatórios de ${ministerioId}:`, error);
+            }
           }
 
-          stats[ministerio.id] = {
-            membros: membrosSnapshot.size,
-            visitantes: visitantesCount,
-            ativo: membrosSnapshot.size > 0 || visitantesCount > 0
-          };
-          
+          // Para células, buscar células e relatórios
+          if (ministerioId === "celula") {
+            try {
+              const celulasRef = collection(db, "churchBasico", "ministerios", "conteudo", "celula", "celulas");
+              const celulasSnapshot = await getDocs(celulasRef);
+              
+              const relatoriosRef = collection(db, "churchBasico", "ministerios", "conteudo", "celula", "relatorios");
+              const relatoriosSnapshot = await getDocs(relatoriosRef);
+              relatoriosCount = relatoriosSnapshot.size;
+
+              // Usar células como "visitantes" para manter consistência
+              visitantesCount = celulasSnapshot.size;
+            } catch (error) {
+              console.log(`Erro ao carregar dados de ${ministerioId}:`, error);
+            }
+          }
+
+          const membrosCount = membrosSnapshot.size;
+          const temDados = membrosCount > 0 || visitantesCount > 0 || relatoriosCount > 0;
+
+          if (temDados) {
+            ministeriosEncontrados.push({
+              id: ministerioId,
+              ...config
+            });
+
+            stats[ministerioId] = {
+              membros: membrosCount,
+              visitantes: visitantesCount,
+              relatorios: relatoriosCount,
+              ativo: true
+            };
+          }
+
         } catch (error) {
-          console.log(`Erro ao carregar stats do ${ministerio.nome}:`, error);
-          stats[ministerio.id] = {
-            membros: 0,
-            visitantes: 0,
-            ativo: false
-          };
+          console.log(`Erro ao verificar ministério ${ministerioId}:`, error);
         }
       }
-      
+
+      setMinisteriosAtivos(ministeriosEncontrados);
       setMinisteriosStats(stats);
     } catch (error) {
-      console.log("Erro ao carregar estatísticas dos ministérios:", error);
+      console.log("Erro ao verificar ministérios:", error);
     } finally {
       setLoading(false);
     }
@@ -132,24 +172,24 @@ export default function RelatoriosMinisterios({ navigation }) {
   };
 
   useEffect(() => {
-    loadMinisteriosStats();
+    verificarMinisteriosExistentes();
   }, []);
 
   // Atualizar quando a tela recebe foco
   useEffect(() => {
     const unsubscribe = navigation.addListener("focus", () => {
-      loadMinisteriosStats();
+      verificarMinisteriosExistentes();
     });
 
     return unsubscribe;
   }, [navigation]);
 
   const renderMinisterioCard = ({ item }) => {
-    const stats = ministeriosStats[item.id] || { membros: 0, visitantes: 0, ativo: false };
+    const stats = ministeriosStats[item.id] || { membros: 0, visitantes: 0, relatorios: 0, ativo: false };
     
     return (
       <TouchableOpacity
-        style={[styles.ministerioCard, !stats.ativo && styles.ministerioInativo]}
+        style={styles.ministerioCard}
         onPress={() => navigateToRelatorio(item)}
         activeOpacity={0.7}
       >
@@ -164,17 +204,10 @@ export default function RelatoriosMinisterios({ navigation }) {
           </View>
 
           <View style={styles.ministerioStatus}>
-            {stats.ativo ? (
-              <View style={styles.statusAtivo}>
-                <View style={styles.statusIndicator} />
-                <Text style={styles.statusText}>Ativo</Text>
-              </View>
-            ) : (
-              <View style={styles.statusInativo}>
-                <View style={styles.statusIndicatorInativo} />
-                <Text style={styles.statusTextInativo}>Inativo</Text>
-              </View>
-            )}
+            <View style={styles.statusAtivo}>
+              <View style={styles.statusIndicator} />
+              <Text style={styles.statusText}>Ativo</Text>
+            </View>
           </View>
         </View>
 
@@ -191,6 +224,20 @@ export default function RelatoriosMinisterios({ navigation }) {
             </View>
           )}
 
+          {item.id === "celula" && (
+            <View style={styles.statItem}>
+              <Ionicons name="home" size={16} color="#666" />
+              <Text style={styles.statText}>{stats.visitantes} células</Text>
+            </View>
+          )}
+
+          {stats.relatorios > 0 && (
+            <View style={styles.statItem}>
+              <Ionicons name="document-text" size={16} color="#666" />
+              <Text style={styles.statText}>{stats.relatorios} relatórios</Text>
+            </View>
+          )}
+
           <View style={styles.statItem}>
             <Ionicons name="chevron-forward" size={16} color={item.color} />
             <Text style={[styles.statText, { color: item.color }]}>Ver relatório</Text>
@@ -199,6 +246,10 @@ export default function RelatoriosMinisterios({ navigation }) {
       </TouchableOpacity>
     );
   };
+
+  const totalMembros = Object.values(ministeriosStats).reduce((total, m) => total + m.membros, 0);
+  const totalVisitantes = ministeriosStats.conexao?.visitantes || 0;
+  const totalRelatorios = Object.values(ministeriosStats).reduce((total, m) => total + m.relatorios, 0);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -215,34 +266,26 @@ export default function RelatoriosMinisterios({ navigation }) {
       </View>
 
       <ScrollView style={styles.content}>
-        
-
         {/* Estatísticas Gerais */}
         <View style={styles.overviewContainer}>
           <Text style={styles.sectionTitle}>Resumo Geral</Text>
           <View style={styles.overviewStats}>
             <View style={styles.overviewCard}>
               <Ionicons name="business-outline" size={24} color="#B8986A" />
-              <Text style={styles.overviewNumber}>
-                {Object.values(ministeriosStats).filter(m => m.ativo).length}
-              </Text>
+              <Text style={styles.overviewNumber}>{ministeriosAtivos.length}</Text>
               <Text style={styles.overviewLabel}>Ministérios Ativos</Text>
             </View>
             
             <View style={styles.overviewCard}>
               <Ionicons name="people-outline" size={24} color="#B8986A" />
-              <Text style={styles.overviewNumber}>
-                {Object.values(ministeriosStats).reduce((total, m) => total + m.membros, 0)}
-              </Text>
+              <Text style={styles.overviewNumber}>{totalMembros}</Text>
               <Text style={styles.overviewLabel}>Total de Membros</Text>
             </View>
 
             <View style={styles.overviewCard}>
-              <Ionicons name="person-add-outline" size={24} color="#B8986A" />
-              <Text style={styles.overviewNumber}>
-                {ministeriosStats.conexao?.visitantes || 0}
-              </Text>
-              <Text style={styles.overviewLabel}>Visitantes</Text>
+              <Ionicons name="document-text-outline" size={24} color="#B8986A" />
+              <Text style={styles.overviewNumber}>{totalRelatorios}</Text>
+              <Text style={styles.overviewLabel}>Relatórios</Text>
             </View>
           </View>
         </View>
@@ -253,7 +296,7 @@ export default function RelatoriosMinisterios({ navigation }) {
             <Text style={styles.sectionTitle}>Relatórios por Ministério</Text>
             <TouchableOpacity
               style={styles.refreshButton}
-              onPress={loadMinisteriosStats}
+              onPress={verificarMinisteriosExistentes}
               disabled={loading}
             >
               <Ionicons name="refresh" size={16} color="#666" />
@@ -264,11 +307,19 @@ export default function RelatoriosMinisterios({ navigation }) {
           {loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#B8986A" />
-              <Text style={styles.loadingText}>Carregando relatórios...</Text>
+              <Text style={styles.loadingText}>Carregando ministérios...</Text>
+            </View>
+          ) : ministeriosAtivos.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="business-outline" size={64} color="#ccc" />
+              <Text style={styles.emptyTitle}>Nenhum Ministério Ativo</Text>
+              <Text style={styles.emptyText}>
+                Os ministérios aparecerão aqui quando tiverem membros ou dados cadastrados.
+              </Text>
             </View>
           ) : (
             <FlatList
-              data={MINISTERIOS_DISPONIVEIS}
+              data={ministeriosAtivos}
               keyExtractor={(item) => item.id}
               renderItem={renderMinisterioCard}
               scrollEnabled={false}
@@ -313,22 +364,8 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
-  welcomeSection: {
-    paddingVertical: 20,
-  },
-  welcomeTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 8,
-  },
-  welcomeSubtitle: {
-    fontSize: 16,
-    color: "#666",
-    lineHeight: 22,
-  },
   overviewContainer: {
-    marginBottom: 30,
+    marginVertical: 20,
   },
   sectionTitle: {
     fontSize: 18,
@@ -396,6 +433,24 @@ const styles = StyleSheet.create({
     color: "#666",
     marginTop: 10,
   },
+  emptyContainer: {
+    alignItems: "center",
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#333",
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    lineHeight: 20,
+  },
   ministerioCard: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -406,10 +461,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
-  },
-  ministerioInativo: {
-    opacity: 0.7,
-    backgroundColor: "#f8f9fa",
   },
   ministerioHeader: {
     flexDirection: "row",
@@ -457,26 +508,12 @@ const styles = StyleSheet.create({
     color: "#50C878",
     fontWeight: "600",
   },
-  statusInativo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  statusIndicatorInativo: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#ff6b6b",
-  },
-  statusTextInativo: {
-    fontSize: 12,
-    color: "#ff6b6b",
-    fontWeight: "600",
-  },
   ministerioStats: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
   },
   statItem: {
     flexDirection: "row",

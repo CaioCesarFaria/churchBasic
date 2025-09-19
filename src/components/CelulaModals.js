@@ -1,4 +1,4 @@
-// CelulaModals.js
+// CelulaModals.js - ATUALIZADO
 import React from "react";
 import {
   View,
@@ -106,7 +106,7 @@ const CelulaModals = ({
 
   return (
     <>
-      {/* Modal de Cadastro/Edição de Célula */}
+      {/* Modal de Cadastro/Edição de Célula - APENAS PARA ADMINS */}
       {canManageCelulas && (
         <Modal
           visible={modalVisible}
@@ -189,7 +189,7 @@ const CelulaModals = ({
         </Modal>
       )}
 
-      {/* Modal de Adicionar Membro */}
+      {/* Modal de Adicionar Membro - APENAS PARA ADMINS */}
       {canManageCelulas && (
         <Modal
           visible={memberModalVisible}
@@ -266,7 +266,7 @@ const CelulaModals = ({
         </Modal>
       )}
 
-      {/* Modal de Relatório */}
+      {/* Modal de Relatório - DISPONÍVEL PARA TODOS */}
       <Modal
         visible={reportModalVisible}
         animationType="slide"

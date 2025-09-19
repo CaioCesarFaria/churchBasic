@@ -1,191 +1,215 @@
-// MiniPlayer.js
-import React, { useState } from 'react';
+// MiniPlayer.js - FIXO NA ÁREA DE TRABALHO COM CONTROLES COMPLETOS
+import React, { useRef, useEffect, useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
+  StyleSheet,
   Animated,
   Dimensions,
-  Modal,
-} from 'react-native';
-import Slider from '@react-native-community/slider'
-import { Ionicons } from '@expo/vector-icons';
-import { useRadio } from '../context/RadioContext';
+  Slider,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useRadio } from "../context/RadioContext";
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
 export default function MiniPlayer() {
   const {
+    radioInfo,
     isPlaying,
     isLoading,
-    volume,
-    radioInfo,
     togglePlayback,
-    stopRadio,
+    volume,
     adjustVolume,
+    stopRadio,
     showMiniPlayer,
-    toggleMiniPlayer,
   } = useRadio();
 
-  const [showFullPlayer, setShowFullPlayer] = useState(false);
-  const [fadeAnim] = useState(new Animated.Value(0));
+  const [muted, setMuted] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const scrollAnim = useRef(new Animated.Value(0)).current;
+  const expandAnim = useRef(new Animated.Value(0)).current;
 
-  // Animar entrada do mini player
-  React.useEffect(() => {
-    if (showMiniPlayer) {
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
+  // Animação do letreiro
+  useEffect(() => {
+    if (showMiniPlayer && radioInfo) {
+      scrollAnim.setValue(width);
+      const animation = Animated.loop(
+        Animated.timing(scrollAnim, {
+          toValue: -width * 2,
+          duration: 25000,
+          useNativeDriver: true,
+        })
+      );
+      animation.start();
+      
+      return () => animation.stop();
     }
-  }, [showMiniPlayer, fadeAnim]);
+  }, [showMiniPlayer, radioInfo, scrollAnim]);
 
-  if (!showMiniPlayer) {
-    return null;
-  }
+  // Animação de expansão
+  useEffect(() => {
+    Animated.timing(expandAnim, {
+      toValue: expanded ? 1 : 0,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [expanded]);
 
-  const handlePlayPause = async () => {
-    await togglePlayback();
-  };
-
-  const handleStop = () => {
-    stopRadio();
-  };
-
-  const handleExpand = () => {
-    setShowFullPlayer(true);
-  };
-
-  const handleCollapse = () => {
-    setShowFullPlayer(false);
+  const toggleMute = () => {
+    const newVolume = muted ? 1 : 0;
+    adjustVolume(newVolume);
+    setMuted(!muted);
   };
 
   const handleVolumeChange = (value) => {
     adjustVolume(value);
+    setMuted(value === 0);
   };
 
-  // Mini Player (versão compacta)
-  const renderMiniPlayer = () => (
-    <Animated.View style={[styles.miniPlayer, { opacity: fadeAnim }]}>
-      <TouchableOpacity style={styles.miniPlayerContent} onPress={handleExpand}>
-        <View style={styles.radioIcon}>
-          <Ionicons name="radio" size={20} color="#B8986A" />
-        </View>
-        
-        <View style={styles.radioInfo}>
-          <Text style={styles.radioName} numberOfLines={1}>
-            {radioInfo.name}
-          </Text>
-          <Text style={styles.radioStatus} numberOfLines={1}>
-            {isLoading ? 'Conectando...' : isPlaying ? 'Ao vivo' : 'Pausado'}
-          </Text>
-        </View>
-        
-        <View style={styles.miniControls}>
+  const toggleExpand = () => {
+    setExpanded(!expanded);
+  };
+
+  // Se não deve mostrar, não exibe
+  if (!showMiniPlayer || !radioInfo) {
+    return null;
+  }
+
+  // Status text baseado no estado
+  const getStatusText = () => {
+    if (isLoading) return "Conectando...";
+    if (isPlaying) return "♪ Ao vivo";
+    return "Pausado";
+  };
+
+  return (
+    <Animated.View
+      style={[
+        styles.container,
+        {
+          height: expandAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [60, 120],
+          }),
+        },
+      ]}
+    >
+      {/* Linha principal - sempre visível */}
+      <View style={styles.mainRow}>
+        {/* Info da rádio */}
+        <TouchableOpacity 
+          style={styles.radioInfoContainer}
+          onPress={toggleExpand}
+        >
+          <View style={styles.radioIcon}>
+            <Ionicons 
+              name="radio" 
+              size={20} 
+              color="#B8986A" 
+            />
+            {isPlaying && (
+              <View style={styles.liveIndicator} />
+            )}
+          </View>
+          
+          <View style={styles.textContainer}>
+            <View style={styles.letreiroContainer}>
+              <Animated.Text
+                style={[
+                  styles.letreiroText,
+                  { transform: [{ translateX: scrollAnim }] },
+                ]}
+                numberOfLines={1}
+              >
+                {radioInfo.name}
+              </Animated.Text>
+            </View>
+            <Text style={styles.statusText}>
+              {getStatusText()}
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Controles principais */}
+        <View style={styles.controlsContainer}>
+          {/* Botão Play/Pause */}
           <TouchableOpacity 
-            style={styles.miniControlButton} 
-            onPress={handlePlayPause}
+            onPress={togglePlayback} 
+            style={[styles.playButton, isLoading && styles.playButtonLoading]}
             disabled={isLoading}
           >
             {isLoading ? (
-              <ActivityIndicator size="small" color="#B8986A" />
+              <Animated.View
+                style={{
+                  transform: [{
+                    rotate: scrollAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '360deg'],
+                    })
+                  }]
+                }}
+              >
+                <Ionicons name="refresh" size={20} color="#fff" />
+              </Animated.View>
             ) : (
-              <Ionicons 
-                name={isPlaying ? "pause" : "play"} 
-                size={20} 
-                color="#B8986A" 
+              <Ionicons
+                name={isPlaying ? "pause" : "play"}
+                size={20}
+                color="#fff"
               />
             )}
           </TouchableOpacity>
-          
+
+          {/* Botão Expandir/Recolher */}
           <TouchableOpacity 
-            style={styles.miniControlButton} 
-            onPress={handleStop}
+            onPress={toggleExpand}
+            style={styles.expandButton}
           >
-            <Ionicons name="close" size={20} color="#666" />
+            <Ionicons
+              name={expanded ? "chevron-down" : "chevron-up"}
+              size={16}
+              color="#666"
+            />
+          </TouchableOpacity>
+
+          {/* Botão Fechar */}
+          <TouchableOpacity 
+            onPress={stopRadio}
+            style={styles.closeButton}
+          >
+            <Ionicons name="close" size={16} color="#666" />
           </TouchableOpacity>
         </View>
-      </TouchableOpacity>
-    </Animated.View>
-  );
+      </View>
 
-  // Full Player (versão expandida)
-  const renderFullPlayer = () => (
-    <Modal
-      visible={showFullPlayer}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={handleCollapse}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.fullPlayer}>
-          {/* Header */}
-          <View style={styles.fullPlayerHeader}>
-            <TouchableOpacity onPress={handleCollapse}>
-              <Ionicons name="chevron-down" size={24} color="#666" />
-            </TouchableOpacity>
-            <Text style={styles.fullPlayerTitle}>Rádio</Text>
-            <TouchableOpacity onPress={handleStop}>
-              <Ionicons name="close" size={24} color="#666" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Radio Icon */}
-          <View style={styles.radioIconLarge}>
-            <Ionicons name="radio" size={80} color="#B8986A" />
-            {isPlaying && (
-              <View style={styles.liveBadge}>
-                <View style={styles.liveIndicator} />
-                <Text style={styles.liveText}>AO VIVO</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Radio Info */}
-          <View style={styles.fullRadioInfo}>
-            <Text style={styles.fullRadioName}>{radioInfo.name}</Text>
-            <Text style={styles.fullRadioLocation}>
-              {radioInfo.city}, {radioInfo.state}
-            </Text>
-            <Text style={styles.fullRadioCategory}>
-              {radioInfo.category} • {radioInfo.type}
-            </Text>
-            <Text style={styles.fullRadioStatus}>
-              {isLoading ? 'Conectando...' : isPlaying ? 'Transmissão ao vivo' : 'Rádio pausada'}
-            </Text>
-          </View>
-
-          {/* Controls */}
-          <View style={styles.fullControls}>
-            <TouchableOpacity 
-              style={[styles.fullControlButton, isLoading && styles.disabledButton]} 
-              onPress={handlePlayPause}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator size="large" color="#fff" />
-              ) : (
-                <Ionicons 
-                  name={isPlaying ? "pause" : "play"} 
-                  size={32} 
-                  color="#fff" 
-                />
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* Volume Control */}
+      {/* Linha expandida - controles avançados */}
+      {expanded && (
+        <Animated.View
+          style={[
+            styles.expandedRow,
+            {
+              opacity: expandAnim,
+              transform: [{
+                translateY: expandAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-20, 0],
+                })
+              }]
+            }
+          ]}
+        >
+          {/* Controle de Volume */}
           <View style={styles.volumeContainer}>
-            <Ionicons name="volume-low" size={20} color="#666" />
+            <TouchableOpacity onPress={toggleMute} style={styles.volumeButton}>
+              <Ionicons
+                name={muted || volume === 0 ? "volume-mute" : volume < 0.5 ? "volume-low" : "volume-high"}
+                size={18}
+                color="#666"
+              />
+            </TouchableOpacity>
+            
             <Slider
               style={styles.volumeSlider}
               minimumValue={0}
@@ -194,194 +218,167 @@ export default function MiniPlayer() {
               onValueChange={handleVolumeChange}
               minimumTrackTintColor="#B8986A"
               maximumTrackTintColor="#ddd"
-              thumbStyle={styles.volumeThumb}
+              thumbStyle={styles.sliderThumb}
             />
-            <Ionicons name="volume-high" size={20} color="#666" />
+            
+            <Text style={styles.volumeText}>
+              {Math.round(volume * 100)}%
+            </Text>
           </View>
-        </View>
-      </View>
-    </Modal>
-  );
 
-  return (
-    <>
-      {renderMiniPlayer()}
-      {renderFullPlayer()}
-    </>
+          {/* Info adicional */}
+          <View style={styles.additionalInfo}>
+            <Text style={styles.radioLocation}>
+              {radioInfo.city}, {radioInfo.state}
+            </Text>
+            <Text style={styles.radioCategory}>
+              {radioInfo.category}
+            </Text>
+          </View>
+        </Animated.View>
+      )}
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  // Mini Player Styles
-  miniPlayer: {
-    position: 'absolute',
-    bottom: 0,
+  container: {
+    position: "absolute",
+    bottom: 65,
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopWidth: 1,
-    borderTopColor: '#eee',
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: -2 },
-    zIndex: 1000,
-  },
-  miniPlayerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderTopColor: "#e0e0e0",
     paddingHorizontal: 15,
-    paddingVertical: 10,
+    paddingVertical: 8,
+    zIndex: 999,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: -3 },
+  },
+  mainRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 44,
+  },
+  radioInfoContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 10,
   },
   radioIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f8f8f8',
-    justifyContent: 'center',
-    alignItems: 'center',
+    position: "relative",
     marginRight: 12,
-  },
-  radioInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  radioName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-  },
-  radioStatus: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
-  },
-  miniControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  miniControlButton: {
-    padding: 8,
-    marginLeft: 8,
-  },
-
-  // Full Player Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  fullPlayer: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 10,
-    paddingBottom: 40,
-    paddingHorizontal: 20,
-    minHeight: '60%',
-    maxHeight: '80%',
-  },
-  fullPlayerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  fullPlayerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
-  radioIconLarge: {
-    alignItems: 'center',
-    marginVertical: 30,
-    position: 'relative',
-  },
-  liveBadge: {
-    position: 'absolute',
-    top: -10,
-    right: -20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ff4757',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    padding: 2,
   },
   liveIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#fff',
-    marginRight: 4,
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#ff4757",
   },
-  liveText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#fff',
+  textContainer: {
+    flex: 1,
+    justifyContent: "center",
   },
-  fullRadioInfo: {
-    alignItems: 'center',
-    marginBottom: 30,
+  letreiroContainer: {
+    overflow: "hidden",
+    height: 18,
+    justifyContent: "center",
   },
-  fullRadioName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  fullRadioLocation: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 4,
-  },
-  fullRadioCategory: {
+  letreiroText: {
     fontSize: 14,
-    color: '#999',
-    marginBottom: 8,
-    textTransform: 'capitalize',
+    fontWeight: "600",
+    color: "#333",
+    width: width * 2,
   },
-  fullRadioStatus: {
-    fontSize: 14,
-    color: '#B8986A',
-    fontWeight: '600',
+  statusText: {
+    fontSize: 11,
+    color: "#666",
+    marginTop: 2,
   },
-  fullControls: {
-    alignItems: 'center',
-    marginBottom: 30,
+  controlsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
-  fullControlButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#B8986A',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 5,
-    shadowColor: '#000',
+  playButton: {
+    backgroundColor: "#B8986A",
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 2,
+    shadowColor: "#000",
     shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
   },
-  disabledButton: {
+  playButtonLoading: {
     opacity: 0.7,
   },
+  expandButton: {
+    padding: 8,
+    borderRadius: 15,
+    backgroundColor: "#f5f5f5",
+  },
+  closeButton: {
+    padding: 8,
+    borderRadius: 15,
+    backgroundColor: "#f5f5f5",
+  },
+  expandedRow: {
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+    marginTop: 8,
+  },
   volumeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  volumeButton: {
+    marginRight: 12,
+    padding: 4,
   },
   volumeSlider: {
     flex: 1,
-    marginHorizontal: 15,
+    height: 30,
   },
-  volumeThumb: {
-    backgroundColor: '#B8986A',
-    width: 20,
-    height: 20,
+  sliderThumb: {
+    backgroundColor: "#B8986A",
+    width: 16,
+    height: 16,
+  },
+  volumeText: {
+    fontSize: 12,
+    color: "#666",
+    marginLeft: 12,
+    minWidth: 35,
+    textAlign: "center",
+  },
+  additionalInfo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  radioLocation: {
+    fontSize: 12,
+    color: "#999",
+  },
+  radioCategory: {
+    fontSize: 12,
+    color: "#B8986A",
+    fontWeight: "500",
+    textTransform: "capitalize",
   },
 });
