@@ -34,6 +34,8 @@ import RelatoriosMinisterios from "./src/screens/Relatorios/RelatorioMinisterios
 import MinisterioConexaoRelatorio from "./src/screens/Relatorios/MinisterioConexaoRelatorio";
 import MinisterioMembros from "./src/screens/Ministerios/MinisterioMembros";
 import MinisterioCelulaRelatorio from "./src/screens/Relatorios/MinisterioCelulaRelatorio";
+import MinisterioDiaconatoAdmin from "./src/screens/Ministerios/MinisterioDiaconatoAdmin";
+import MinisterioDiaconatoRelatorio from "./src/screens/Relatorios/MinisterioDiaconatoRelatorio";
 
 const Stack = createNativeStackNavigator();
 
@@ -258,6 +260,21 @@ const AppNavigator = () => {
         <Stack.Screen
           name="MinisterioCelulaRelatorio"
           component={MinisterioCelulaRelatorio}
+          options={{
+            headerShown: false,
+          }}
+        />
+        {/* Telas dos RELATORIO diaconato */}
+        <Stack.Screen
+          name="MinisterioDiaconatoRelatorio"
+          component={MinisterioDiaconatoRelatorio}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="MinisterioDiaconatoAdmin"
+          component={MinisterioDiaconatoAdmin}
           options={{
             headerShown: false,
           }}

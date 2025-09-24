@@ -1,5 +1,5 @@
-// MinisteriosAdm.js
-import React, { useEffect, useState } from "react";
+// MinisteriosAdm.js - VERSÃO CORRIGIDA
+import React, { useEffect, useState, useCallback } from "react";
 import { 
   View, 
   Text, 
@@ -7,16 +7,19 @@ import {
   StyleSheet, 
   ActivityIndicator, 
   TouchableOpacity,
-  Alert 
+  Alert,
+  RefreshControl 
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { db } from "../../Firebase/FirebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function MinisteriosAdm({ navigation }) {
   const [ministerios, setMinisterios] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Função para limpar nome do ministério e gerar nome da rota
   const cleanMinistryName = (name) => {
@@ -48,21 +51,41 @@ export default function MinisteriosAdm({ navigation }) {
     }
   };
 
-  const fetchMinisterios = async () => {
+  const fetchMinisterios = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      
+      console.log("=== BUSCANDO MINISTÉRIOS ===");
+      console.log("Caminho: churchBasico/users/lideres");
+      
       const lideresRef = collection(db, "churchBasico", "users", "lideres");
       const snapshot = await getDocs(lideresRef);
-      const data = snapshot.docs.map(doc => doc.data());
+      
+      console.log("Total de documentos encontrados:", snapshot.docs.length);
+      
+      const data = snapshot.docs.map(doc => {
+        const docData = doc.data();
+        console.log("Documento:", doc.id, "Dados:", docData);
+        return docData;
+      });
       
       // Agrupar ministérios por nome
       const ministeriosMap = {};
       data.forEach(lider => {
+        console.log("Processando líder:", lider.name, "Ministério:", lider.ministerio);
         if (lider.ministerio) {
-          if (!ministeriosMap[lider.ministerio]) ministeriosMap[lider.ministerio] = [];
+          if (!ministeriosMap[lider.ministerio]) {
+            ministeriosMap[lider.ministerio] = [];
+          }
           ministeriosMap[lider.ministerio].push(lider.name);
         }
       });
+
+      console.log("Mapa de ministérios:", ministeriosMap);
 
       const result = Object.keys(ministeriosMap).map(key => ({
         ministerio: key,
@@ -73,18 +96,32 @@ export default function MinisteriosAdm({ navigation }) {
       // Ordenar por nome do ministério
       result.sort((a, b) => a.ministerio.localeCompare(b.ministerio));
 
+      console.log("Resultado final:", result);
       setMinisterios(result);
     } catch (error) {
       console.log("Erro ao buscar ministérios:", error);
       Alert.alert("Erro", "Erro ao carregar ministérios");
     } finally {
-      setLoading(false);
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
   };
 
-  useEffect(() => {
-    fetchMinisterios();
-  }, []);
+  // Recarregar sempre que a tela ganhar foco
+  useFocusEffect(
+    useCallback(() => {
+      console.log("Tela de Ministérios ganhou foco - recarregando dados");
+      fetchMinisterios();
+    }, [])
+  );
+
+  // Função para refresh manual
+  const onRefresh = () => {
+    fetchMinisterios(true);
+  };
 
   const renderMinisterioItem = ({ item }) => (
     <TouchableOpacity 
@@ -129,7 +166,12 @@ export default function MinisteriosAdm({ navigation }) {
         
         <Text style={styles.headerTitle}>Ministérios</Text>
         
-        <View style={styles.placeholder} />
+        <TouchableOpacity 
+          style={styles.refreshHeaderButton}
+          onPress={onRefresh}
+        >
+          <Ionicons name="refresh" size={20} color="#B8986A" />
+        </TouchableOpacity>
       </View>
 
       {/* Content */}
@@ -154,6 +196,14 @@ export default function MinisteriosAdm({ navigation }) {
               renderItem={renderMinisterioItem}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.listContainer}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  colors={['#B8986A']}
+                  tintColor="#B8986A"
+                />
+              }
             />
           </>
         ) : (
@@ -163,6 +213,14 @@ export default function MinisteriosAdm({ navigation }) {
             <Text style={styles.emptyText}>
               Cadastre líderes para que os ministérios apareçam aqui
             </Text>
+            
+            <TouchableOpacity 
+              style={styles.retryButton}
+              onPress={onRefresh}
+            >
+              <Ionicons name="refresh" size={16} color="#B8986A" />
+              <Text style={styles.retryButtonText}>Tentar novamente</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -193,8 +251,8 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#333",
   },
-  placeholder: {
-    width: 40,
+  refreshHeaderButton: {
+    padding: 8,
   },
   content: {
     flex: 1,
@@ -305,5 +363,20 @@ const styles = StyleSheet.create({
     color: "#666",
     textAlign: "center",
     lineHeight: 22,
+    marginBottom: 20,
+  },
+  retryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8f4e6",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  retryButtonText: {
+    color: "#B8986A",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

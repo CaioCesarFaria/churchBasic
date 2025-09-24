@@ -1,4 +1,4 @@
-// MinisterioMembros.js - Com os cards dos ministérios que o mebro faz parte. 
+// MinisterioMembros.js - CORRIGIDO - Sem duplicatas e com navegação inteligente
 import React, { useState, useEffect, useContext } from "react";
 import {
   View,
@@ -39,104 +39,164 @@ export default function MinisterioMembros({ navigation }) {
     setLoading(true);
     try {
       const ministeriosData = [];
+      
+      console.log("Buscando ministérios para userId:", user.uid);
 
-      // Buscar no ministério de Comunicação
-      try {
-        const comunicacaoRef = collection(db, "churchBasico", "ministerios", "conteudo", "comunicacao", "membros");
-        const comunicacaoQuery = query(comunicacaoRef, where("userId", "==", user.uid));
-        const comunicacaoSnapshot = await getDocs(comunicacaoQuery);
-        
-        comunicacaoSnapshot.forEach((doc) => {
-          const data = doc.data();
-          ministeriosData.push({
-            id: doc.id,
-            ministerio: "Comunicação",
-            ministerioId: "comunicacao",
-            icon: "megaphone",
-            color: "#4A90E2",
-            role: data.role || "membro",
-            lider: "Pastor João", // Você pode buscar isso do banco depois
-            route: "MinisterioComunicacaoAdmin",
-            ...data
-          });
-        });
-      } catch (error) {
-        console.log("Erro ao buscar ministério de Comunicação:", error);
+      // Lista de todos os ministérios para buscar
+      const ministeriosConfig = [
+        {
+          collection: "comunicacao",
+          name: "Comunicação",
+          icon: "megaphone",
+          color: "#4A90E2",
+          lider: "Pastor João",
+          route: "MinisterioComunicacaoAdmin"
+        },
+        {
+          collection: "celula",
+          name: "Células",
+          icon: "people",
+          color: "#B8986A",
+          lider: "Pastor Pedro",
+          route: "MinisterioCelulaAdmin"
+        },
+        {
+          collection: "kids",
+          name: "Kids",
+          icon: "happy",
+          color: "#FF6B6B",
+          lider: "Tia Maria",
+          route: "MinisterioKidsAdmin"
+        },
+        {
+          collection: "louvor",
+          name: "Louvor",
+          icon: "musical-notes",
+          color: "#9B59B6",
+          lider: "Pr. Carlos",
+          route: "MinisterioLouvorAdmin"
+        },
+        {
+          collection: "diaconato",
+          name: "Diaconato",
+          icon: "shield",
+          color: "#8B4513",
+          lider: "Pr. Marcos",
+          route: "MinisterioDiaconatoAdmin"
+        }
+      ];
+
+      // Buscar em cada ministério
+      for (const ministerioConfig of ministeriosConfig) {
+        try {
+          let ministerioInfo = null;
+
+          // 1. PRIMEIRO: Buscar se é líder geral (para diaconato)
+          if (ministerioConfig.collection === "diaconato") {
+            try {
+              const lideresRef = collection(
+                db, 
+                "churchBasico", 
+                "ministerios", 
+                "conteudo", 
+                "diaconato", 
+                "lideres"
+              );
+              
+              const lideresSnapshot = await getDocs(lideresRef);
+              
+              lideresSnapshot.forEach((doc) => {
+                const data = doc.data();
+                
+                if (data.userId === user.uid) {
+                  const roleMapping = {
+                    "general": "responsavel",
+                    "teamA": "liderTimeA", 
+                    "teamB": "liderTimeB"
+                  };
+
+                  ministerioInfo = {
+                    id: `diaconato_leader_${doc.id}`,
+                    ministerio: ministerioConfig.name,
+                    ministerioId: ministerioConfig.collection,
+                    icon: ministerioConfig.icon,
+                    color: ministerioConfig.color,
+                    role: roleMapping[doc.id] || "lider",
+                    lider: ministerioConfig.lider,
+                    route: ministerioConfig.route,
+                    source: "lideres",
+                    leadershipType: doc.id,
+                    permissions: {
+                      canCreateScales: true,
+                      canViewAllScales: doc.id === "general",
+                      defaultTab: doc.id === "general" ? "membros" : "escalas"
+                    },
+                    ...data
+                  };
+
+                  console.log(`Encontrado como líder: ${doc.id}`, ministerioInfo);
+                }
+              });
+            } catch (error) {
+              console.log("Erro ao buscar líderes do diaconato:", error);
+            }
+          }
+
+          // 2. SE NÃO É LÍDER: Buscar como membro comum
+          if (!ministerioInfo) {
+            const membrosRef = collection(
+              db, 
+              "churchBasico", 
+              "ministerios", 
+              "conteudo", 
+              ministerioConfig.collection, 
+              "membros"
+            );
+            
+            const membrosQuery = query(membrosRef, where("userId", "==", user.uid));
+            const membrosSnapshot = await getDocs(membrosQuery);
+            
+            membrosSnapshot.forEach((doc) => {
+              const data = doc.data();
+              
+              // Não adicionar se já foi encontrado como líder
+              if (!ministerioInfo) {
+                ministerioInfo = {
+                  id: doc.id,
+                  ministerio: ministerioConfig.name,
+                  ministerioId: ministerioConfig.collection,
+                  icon: ministerioConfig.icon,
+                  color: ministerioConfig.color,
+                  role: data.role || "membro",
+                  lider: ministerioConfig.lider,
+                  route: ministerioConfig.route,
+                  source: "membros",
+                  permissions: {
+                    canCreateScales: false,
+                    canViewAllScales: false,
+                    defaultTab: "escalas"
+                  },
+                  ...data
+                };
+
+                console.log(`Encontrado como membro: ${ministerioConfig.name}`, ministerioInfo);
+              }
+            });
+          }
+
+          // 3. ADICIONAR À LISTA (apenas uma vez por ministério)
+          if (ministerioInfo) {
+            ministeriosData.push(ministerioInfo);
+          }
+
+        } catch (error) {
+          console.log(`Erro ao buscar ministério ${ministerioConfig.name}:`, error);
+        }
       }
 
-      // Buscar no ministério de Células
-      try {
-        const celulaRef = collection(db, "churchBasico", "ministerios", "conteudo", "celula", "membros");
-        const celulaQuery = query(celulaRef, where("userId", "==", user.uid));
-        const celulaSnapshot = await getDocs(celulaQuery);
-        
-        celulaSnapshot.forEach((doc) => {
-          const data = doc.data();
-          ministeriosData.push({
-            id: doc.id,
-            ministerio: "Células",
-            ministerioId: "celula",
-            icon: "people",
-            color: "#B8986A",
-            role: data.role || "membro",
-            lider: "Pastor Pedro", // Você pode buscar isso do banco depois
-            route: "MinisterioCelulaAdmin",
-            ...data
-          });
-        });
-      } catch (error) {
-        console.log("Erro ao buscar ministério de Células:", error);
-      }
-
-      // Buscar no ministério Kids (se existir)
-      try {
-        const kidsRef = collection(db, "churchBasico", "ministerios", "conteudo", "kids", "membros");
-        const kidsQuery = query(kidsRef, where("userId", "==", user.uid));
-        const kidsSnapshot = await getDocs(kidsQuery);
-        
-        kidsSnapshot.forEach((doc) => {
-          const data = doc.data();
-          ministeriosData.push({
-            id: doc.id,
-            ministerio: "Kids",
-            ministerioId: "kids",
-            icon: "happy",
-            color: "#FF6B6B",
-            role: data.role || "membro",
-            lider: "Tia Maria", // Você pode buscar isso do banco depois
-            route: "MinisterioKidsAdmin",
-            ...data
-          });
-        });
-      } catch (error) {
-        console.log("Erro ao buscar ministério Kids:", error);
-      }
-
-      // Buscar no ministério de Louvor (se existir)
-      try {
-        const louvorRef = collection(db, "churchBasico", "ministerios", "conteudo", "louvor", "membros");
-        const louvorQuery = query(louvorRef, where("userId", "==", user.uid));
-        const louvorSnapshot = await getDocs(louvorQuery);
-        
-        louvorSnapshot.forEach((doc) => {
-          const data = doc.data();
-          ministeriosData.push({
-            id: doc.id,
-            ministerio: "Louvor",
-            ministerioId: "louvor",
-            icon: "musical-notes",
-            color: "#9B59B6",
-            role: data.role || "membro",
-            lider: "Pr. Carlos", // Você pode buscar isso do banco depois
-            route: "MinisterioLouvorAdmin",
-            ...data
-          });
-        });
-      } catch (error) {
-        console.log("Erro ao buscar ministério de Louvor:", error);
-      }
-
+      console.log("Total de ministérios encontrados (sem duplicatas):", ministeriosData.length);
       setMinisterios(ministeriosData);
+
     } catch (error) {
       console.log("Erro ao carregar ministérios:", error);
       Alert.alert("Erro", "Não foi possível carregar seus ministérios");
@@ -145,18 +205,37 @@ export default function MinisterioMembros({ navigation }) {
     }
   };
 
+  // Navegação inteligente baseada no papel do usuário
   const navigateToMinisterio = (ministerio) => {
-    navigation.navigate(ministerio.route, {
-      userRole: ministerio.role,
-      ministerioData: ministerio
-    });
+    console.log("Navegando para ministério:", ministerio);
+
+    // Para diaconato, navegar direto para a aba correta
+    if (ministerio.ministerioId === "diaconato") {
+      navigation.navigate(ministerio.route, {
+        userRole: ministerio.role,
+        ministerioData: ministerio,
+        initialTab: ministerio.permissions?.defaultTab || "escalas",
+        permissions: ministerio.permissions
+      });
+    } else {
+      // Para outros ministérios, navegação padrão
+      navigation.navigate(ministerio.route, {
+        userRole: ministerio.role,
+        ministerioData: ministerio
+      });
+    }
   };
 
-  const getRoleDisplayName = (role) => {
+  const getRoleDisplayName = (role, leadershipType) => {
     switch (role) {
       case "responsavel":
-        return "Responsável";
+        return "Responsável Geral";
+      case "liderTimeA":
+        return "Líder do Time A";
+      case "liderTimeB": 
+        return "Líder do Time B";
       case "lider":
+      case "liderTime":
         return "Líder";
       case "coordenador":
         return "Coordenador";
@@ -167,7 +246,27 @@ export default function MinisterioMembros({ navigation }) {
     }
   };
 
+  const getRoleColor = (role) => {
+    switch (role) {
+      case "responsavel":
+        return "#FFD700";
+      case "liderTimeA":
+      case "liderTimeB":
+        return "#FF6B35";
+      case "lider":
+      case "liderTime":
+        return "#4CAF50";
+      case "coordenador":
+        return "#2196F3";
+      default:
+        return "#B8986A";
+    }
+  };
+
   const renderMinisterioCard = ({ item }) => {
+    const roleDisplayName = getRoleDisplayName(item.role, item.leadershipType);
+    const roleColor = getRoleColor(item.role);
+
     return (
       <TouchableOpacity 
         style={styles.ministerioCard}
@@ -178,16 +277,47 @@ export default function MinisterioMembros({ navigation }) {
           <View style={[styles.ministerioIcon, { backgroundColor: item.color }]}>
             <Ionicons name={item.icon} size={24} color="#fff" />
           </View>
+          
           <View style={styles.ministerioInfo}>
             <Text style={styles.ministerioName}>{item.ministerio}</Text>
             <Text style={styles.ministerioLider}>Líder: {item.lider}</Text>
-            <Text style={styles.ministerioRole}>
-              Você é: {getRoleDisplayName(item.role)}
-            </Text>
+            
+            <View style={styles.roleContainer}>
+              <View style={[styles.roleBadge, { backgroundColor: roleColor }]}>
+                <Text style={styles.roleText}>{roleDisplayName}</Text>
+              </View>
+            </View>
+
+            {/* Indicadores de permissões */}
+            {item.permissions?.canCreateScales && (
+              <View style={styles.permissionContainer}>
+                <Ionicons name="create" size={12} color="#4CAF50" />
+                <Text style={styles.permissionText}>Pode criar escalas</Text>
+              </View>
+            )}
           </View>
+          
           <View style={styles.ministerioArrow}>
             <Ionicons name="chevron-forward" size={20} color="#ccc" />
           </View>
+        </View>
+
+        {/* Preview de funcionalidades */}
+        <View style={styles.ministerioPreview}>
+          {item.ministerioId === "diaconato" && (
+            <Text style={styles.previewText}>
+              {item.permissions?.canCreateScales 
+                ? "Gerencie escalas e organize o ministério" 
+                : "Visualize suas escalas e atividades"
+              }
+            </Text>
+          )}
+          
+          {item.ministerioId !== "diaconato" && (
+            <Text style={styles.previewText}>
+              Acesse as atividades do ministério
+            </Text>
+          )}
         </View>
       </TouchableOpacity>
     );
@@ -214,6 +344,15 @@ export default function MinisterioMembros({ navigation }) {
         <DisplayUser userName={userName} />
       </View>
 
+      {/* Debug Info - Remover em produção */}
+      {__DEV__ && (
+        <View style={styles.debugInfo}>
+          <Text style={styles.debugText}>Debug - User ID: {user?.uid}</Text>
+          <Text style={styles.debugText}>User Email: {user?.email}</Text>
+          <Text style={styles.debugText}>Ministérios encontrados: {ministerios.length}</Text>
+        </View>
+      )}
+
       {/* Content */}
       <View style={styles.content}>
         {loading ? (
@@ -227,7 +366,7 @@ export default function MinisterioMembros({ navigation }) {
             <View style={styles.pageHeader}>
               <Text style={styles.pageTitle}>Seus Ministérios</Text>
               <Text style={styles.pageSubtitle}>
-                Toque em um ministério para acessar
+                Toque em um ministério para acessar suas funcionalidades
               </Text>
             </View>
 
@@ -244,7 +383,13 @@ export default function MinisterioMembros({ navigation }) {
               <View style={styles.statCard}>
                 <Ionicons name="trophy" size={24} color="#FFD700" />
                 <Text style={styles.statNumber}>
-                  {ministerios.filter(m => m.role === "responsavel" || m.role === "lider").length}
+                  {ministerios.filter(m => 
+                    m.role === "responsavel" || 
+                    m.role === "lider" || 
+                    m.role === "liderTime" ||
+                    m.role === "liderTimeA" ||
+                    m.role === "liderTimeB"
+                  ).length}
                 </Text>
                 <Text style={styles.statLabel}>Lideranças</Text>
               </View>
@@ -330,6 +475,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
   },
+  debugInfo: {
+    backgroundColor: "#fff3cd",
+    padding: 10,
+    margin: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ffeaa7",
+  },
+  debugText: {
+    fontSize: 12,
+    color: "#856404",
+    marginBottom: 2,
+  },
   content: {
     flex: 1,
   },
@@ -401,6 +559,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
+    overflow: "hidden",
   },
   ministerioHeader: {
     flexDirection: "row",
@@ -427,15 +586,46 @@ const styles = StyleSheet.create({
   ministerioLider: {
     fontSize: 14,
     color: "#666",
-    marginBottom: 2,
+    marginBottom: 8,
   },
-  ministerioRole: {
-    fontSize: 12,
+  roleContainer: {
+    marginBottom: 6,
+  },
+  roleBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  roleText: {
+    fontSize: 11,
     fontWeight: "600",
-    color: "#B8986A",
+    color: "#fff",
+  },
+  permissionContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  permissionText: {
+    fontSize: 11,
+    color: "#4CAF50",
+    fontWeight: "500",
   },
   ministerioArrow: {
     marginLeft: 10,
+  },
+  ministerioPreview: {
+    backgroundColor: "#f8f9fa",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+  },
+  previewText: {
+    fontSize: 12,
+    color: "#666",
+    fontStyle: "italic",
   },
   emptyContainer: {
     alignItems: "center",

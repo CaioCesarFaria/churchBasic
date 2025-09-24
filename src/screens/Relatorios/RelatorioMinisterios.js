@@ -1,4 +1,4 @@
-// RelatoriosMinisterios.js - ATUALIZADO
+// RelatoriosMinisterios.js - ATUALIZADO COM DIACONATO DINÂMICO
 import React, { useState, useEffect, useContext } from "react";
 import {
   View,
@@ -41,12 +41,12 @@ const MINISTERIOS_CONFIG = {
     color: "#f39c12",
     relatorio: "MinisterioLouvorRelatorio"
   },
-  infantil: {
-    nome: "Infantil",
-    descricao: "Ministério com Crianças",
+  kids: {
+    nome: "Kids",
+    descricao: "Ministério Infantil",
     icon: "happy-outline",
     color: "#9b59b6",
-    relatorio: "MinisterioInfantilRelatorio"
+    relatorio: "MinisterioKidsRelatorio"
   },
   adolescentes: {
     nome: "Adolescentes",
@@ -68,6 +68,13 @@ const MINISTERIOS_CONFIG = {
     icon: "home-outline",
     color: "#B8986A",
     relatorio: "MinisterioCelulaRelatorio"
+  },
+  diaconato: {
+    nome: "Diaconato",
+    descricao: "Ministério de Serviço e Dízimos",
+    icon: "shield-outline",
+    color: "#8B4513",
+    relatorio: "MinisterioDiaconatoRelatorio"
   }
 };
 
@@ -92,15 +99,16 @@ export default function RelatoriosMinisterios({ navigation }) {
           const membrosRef = collection(db, "churchBasico", "ministerios", "conteudo", ministerioId, "membros");
           const membrosSnapshot = await getDocs(membrosRef);
           
-          let visitantesCount = 0;
+          let dadosEspeciais = 0; // visitantes, celulas, dizimos, etc
           let relatoriosCount = 0;
+          let lideresCount = 0;
 
           // Para conexão, buscar visitantes
           if (ministerioId === "conexao") {
             try {
               const visitantesRef = collection(db, "churchBasico", "ministerios", "conteudo", "conexao", "visitantes");
               const visitantesSnapshot = await getDocs(visitantesRef);
-              visitantesCount = visitantesSnapshot.size;
+              dadosEspeciais = visitantesSnapshot.size;
             } catch (error) {
               console.log(`Erro ao carregar visitantes de ${ministerioId}:`, error);
             }
@@ -125,15 +133,51 @@ export default function RelatoriosMinisterios({ navigation }) {
               const relatoriosSnapshot = await getDocs(relatoriosRef);
               relatoriosCount = relatoriosSnapshot.size;
 
-              // Usar células como "visitantes" para manter consistência
-              visitantesCount = celulasSnapshot.size;
+              // Usar células como dados especiais
+              dadosEspeciais = celulasSnapshot.size;
             } catch (error) {
               console.log(`Erro ao carregar dados de ${ministerioId}:`, error);
             }
           }
 
+          // Para DIACONATO, buscar líderes, escalas e relatórios de dízimos
+          if (ministerioId === "diaconato") {
+            try {
+              // Verificar líderes
+              const lideresRef = collection(db, "churchBasico", "ministerios", "conteudo", "diaconato", "lideres");
+              const lideresSnapshot = await getDocs(lideresRef);
+              lideresCount = lideresSnapshot.size;
+
+              // Verificar relatórios de dízimos
+              const dizimosRef = collection(db, "churchBasico", "ministerios", "conteudo", "diaconato", "relatoriosDizimos");
+              const dizimosSnapshot = await getDocs(dizimosRef);
+              dadosEspeciais = dizimosSnapshot.size; // número de relatórios de dízimo
+
+              // Contar escalas (buscar em eventos)
+              try {
+                const eventosRef = collection(db, "churchBasico", "sistema", "eventos");
+                const eventosSnapshot = await getDocs(eventosRef);
+                let escalasCount = 0;
+                
+                for (const eventoDoc of eventosSnapshot.docs) {
+                  const eventoData = eventoDoc.data();
+                  if (eventoData.escalaDiaconato) {
+                    escalasCount++;
+                  }
+                }
+                relatoriosCount = escalasCount;
+              } catch (error) {
+                console.log("Erro ao contar escalas do diaconato:", error);
+              }
+
+            } catch (error) {
+              console.log(`Erro ao carregar dados de diaconato:`, error);
+            }
+          }
+
           const membrosCount = membrosSnapshot.size;
-          const temDados = membrosCount > 0 || visitantesCount > 0 || relatoriosCount > 0;
+          const totalLideres = lideresCount > 0 ? lideresCount : 0;
+          const temDados = membrosCount > 0 || dadosEspeciais > 0 || relatoriosCount > 0 || totalLideres > 0;
 
           if (temDados) {
             ministeriosEncontrados.push({
@@ -143,7 +187,8 @@ export default function RelatoriosMinisterios({ navigation }) {
 
             stats[ministerioId] = {
               membros: membrosCount,
-              visitantes: visitantesCount,
+              lideres: totalLideres,
+              dadosEspeciais: dadosEspeciais,
               relatorios: relatoriosCount,
               ativo: true
             };
@@ -185,7 +230,13 @@ export default function RelatoriosMinisterios({ navigation }) {
   }, [navigation]);
 
   const renderMinisterioCard = ({ item }) => {
-    const stats = ministeriosStats[item.id] || { membros: 0, visitantes: 0, relatorios: 0, ativo: false };
+    const stats = ministeriosStats[item.id] || { 
+      membros: 0, 
+      lideres: 0, 
+      dadosEspeciais: 0, 
+      relatorios: 0, 
+      ativo: false 
+    };
     
     return (
       <TouchableOpacity
@@ -217,24 +268,41 @@ export default function RelatoriosMinisterios({ navigation }) {
             <Text style={styles.statText}>{stats.membros} membros</Text>
           </View>
           
+          {stats.lideres > 0 && (
+            <View style={styles.statItem}>
+              <Ionicons name="star" size={16} color="#FFD700" />
+              <Text style={styles.statText}>{stats.lideres} líderes</Text>
+            </View>
+          )}
+
+          {/* Stats específicos por ministério */}
           {item.id === "conexao" && (
             <View style={styles.statItem}>
               <Ionicons name="person-add" size={16} color="#666" />
-              <Text style={styles.statText}>{stats.visitantes} visitantes</Text>
+              <Text style={styles.statText}>{stats.dadosEspeciais} visitantes</Text>
             </View>
           )}
 
           {item.id === "celula" && (
             <View style={styles.statItem}>
               <Ionicons name="home" size={16} color="#666" />
-              <Text style={styles.statText}>{stats.visitantes} células</Text>
+              <Text style={styles.statText}>{stats.dadosEspeciais} células</Text>
+            </View>
+          )}
+
+          {item.id === "diaconato" && (
+            <View style={styles.statItem}>
+              <Ionicons name="cash" size={16} color="#666" />
+              <Text style={styles.statText}>{stats.dadosEspeciais} dízimos</Text>
             </View>
           )}
 
           {stats.relatorios > 0 && (
             <View style={styles.statItem}>
               <Ionicons name="document-text" size={16} color="#666" />
-              <Text style={styles.statText}>{stats.relatorios} relatórios</Text>
+              <Text style={styles.statText}>
+                {stats.relatorios} {item.id === "diaconato" ? "escalas" : "relatórios"}
+              </Text>
             </View>
           )}
 
@@ -248,7 +316,7 @@ export default function RelatoriosMinisterios({ navigation }) {
   };
 
   const totalMembros = Object.values(ministeriosStats).reduce((total, m) => total + m.membros, 0);
-  const totalVisitantes = ministeriosStats.conexao?.visitantes || 0;
+  const totalLideres = Object.values(ministeriosStats).reduce((total, m) => total + (m.lideres || 0), 0);
   const totalRelatorios = Object.values(ministeriosStats).reduce((total, m) => total + m.relatorios, 0);
 
   return (
@@ -283,9 +351,15 @@ export default function RelatoriosMinisterios({ navigation }) {
             </View>
 
             <View style={styles.overviewCard}>
+              <Ionicons name="star-outline" size={24} color="#FFD700" />
+              <Text style={styles.overviewNumber}>{totalLideres}</Text>
+              <Text style={styles.overviewLabel}>Líderes Ativos</Text>
+            </View>
+
+            <View style={styles.overviewCard}>
               <Ionicons name="document-text-outline" size={24} color="#B8986A" />
               <Text style={styles.overviewNumber}>{totalRelatorios}</Text>
-              <Text style={styles.overviewLabel}>Relatórios</Text>
+              <Text style={styles.overviewLabel}>Relatórios/Escalas</Text>
             </View>
           </View>
         </View>
@@ -326,6 +400,17 @@ export default function RelatoriosMinisterios({ navigation }) {
               showsVerticalScrollIndicator={false}
             />
           )}
+        </View>
+
+        {/* Informações adicionais */}
+        <View style={styles.infoSection}>
+          <View style={styles.infoCard}>
+            <Ionicons name="information-circle" size={20} color="#B8986A" />
+            <Text style={styles.infoText}>
+              Os ministérios são criados automaticamente quando líderes são promovidos pelo Admin Master.
+              Cada ministério com dados aparecerá na lista acima.
+            </Text>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -376,12 +461,12 @@ const styles = StyleSheet.create({
   overviewStats: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 10,
+    gap: 8,
   },
   overviewCard: {
     flex: 1,
     backgroundColor: "#fff",
-    padding: 15,
+    padding: 12,
     borderRadius: 12,
     alignItems: "center",
     elevation: 2,
@@ -391,13 +476,13 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
   },
   overviewNumber: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "bold",
     color: "#333",
-    marginVertical: 5,
+    marginVertical: 4,
   },
   overviewLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: "#666",
     textAlign: "center",
   },
@@ -524,5 +609,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#666",
     fontWeight: "500",
+  },
+  infoSection: {
+    marginBottom: 30,
+  },
+  infoCard: {
+    backgroundColor: "#f8f4e6",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: 15,
+    borderRadius: 8,
+    gap: 10,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#B8986A",
+    lineHeight: 18,
   },
 });

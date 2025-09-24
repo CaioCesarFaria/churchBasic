@@ -20,6 +20,14 @@ import BibliaMain from "../screens/BibliaMain";
 import MinisteriosMain from "../screens/MinisteriosMain";
 import CelulaMain from "../screens/CelulaMain";
 import AbbaTvMain from "../screens/AbbaTvMain";
+import MinisterioMembros from "../screens/Ministerios/MinisterioMembros";
+
+// Importar as telas de ministérios para navegação dentro das tabs
+import MinisterioComunicacaoAdmin from "../screens/Ministerios/MinisterioComunicacaoAdmin";
+import MinisterioCelulaAdmin from "../screens/Ministerios/MinisterioCelulaAdmin";
+import MinisterioKidsAdmin from "../screens/Ministerios/MinisterioKidsAdmin";
+import MinisterioLouvorAdmin from "../screens/Ministerios/MinisterioLouvorAdmin";
+import MinisterioDiaconatoAdmin from "../screens/Ministerios/MinisterioDiaconatoAdmin";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -55,6 +63,17 @@ function MaisStackNavigator() {
       <Stack.Screen name="MinisteriosMain" component={MinisteriosMain} />
       <Stack.Screen name="CelulaMain" component={CelulaMain} />
       <Stack.Screen name="AbbaTvMain" component={AbbaTvMain} />
+      
+      {/* TELA DE MINISTÉRIOS DO MEMBRO - AGORA COM BOTTOM TABS */}
+      <Stack.Screen name="MinisterioMembros" component={MinisterioMembros} />
+      
+      {/* TELAS DOS MINISTÉRIOS - AGORA COM BOTTOM TABS */}
+      <Stack.Screen name="MinisterioComunicacaoAdmin" component={MinisterioComunicacaoAdmin} />
+      <Stack.Screen name="MinisterioCelulaAdmin" component={MinisterioCelulaAdmin} />
+      <Stack.Screen name="MinisterioKidsAdmin" component={MinisterioKidsAdmin} />
+      <Stack.Screen name="MinisterioLouvorAdmin" component={MinisterioLouvorAdmin} />
+      <Stack.Screen name="MinisterioDiaconatoAdmin" component={MinisterioDiaconatoAdmin} />
+      
       {/* Adicionar AdminMaster aqui para poder navegar do botão da Home */}
       <Stack.Screen name="AdminMaster" component={AdminMaster} />
     </Stack.Navigator>

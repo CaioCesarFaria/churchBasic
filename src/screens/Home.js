@@ -1,5 +1,5 @@
-// Home.js - VERSÃO COMPLETA ATUALIZADA
-import React, { useState, useContext, useEffect } from "react";
+// Home.js - VERSÃO COMPLETA CORRIGIDA COM VERIFICAÇÃO DE DIACONATO
+import React, { useState, useContext, useEffect, useCallback } from "react";
 import {
   StyleSheet,
   StatusBar,
@@ -56,7 +56,7 @@ const versiculos = [
   }
 ];
 
-// Dados do primeiro vídeo do ABBA TV (baseado no AbbaTvMain.js)
+// Dados do primeiro vídeo do ABBA TV
 const primeiroVideoAbbaTv = {
   id: '1',
   title: 'Culto de Domingo - Palavra que Transforma',
@@ -91,7 +91,7 @@ export default function HomeScreen() {
   const [versiculoDoDia, setVersiculoDoDia] = useState(null);
   const [loadingEventos, setLoadingEventos] = useState(false);
   
-  // NOVO: Estado para verificar se o usuário tem ministérios
+  // Estados para verificar se o usuário tem ministérios
   const [hasMinisterios, setHasMinisterios] = useState(false);
   const [loadingMinisterios, setLoadingMinisterios] = useState(false);
 
@@ -107,24 +107,30 @@ export default function HomeScreen() {
   };
 
   // Função para selecionar versículo do dia
-  const selecionarVersiculoDoDia = () => {
+  const selecionarVersiculoDoDia = useCallback(() => {
     const hoje = new Date();
     const seed = hoje.getDate() + hoje.getMonth() + hoje.getFullYear();
     const indice = seed % versiculos.length;
     setVersiculoDoDia(versiculos[indice]);
-  };
+  }, []);
 
-  // Carregar eventos do Kids
-  const carregarEventosKids = async () => {
+  // Carregar eventos do Kids - COM TRATAMENTO DE ERRO
+  const carregarEventosKids = useCallback(async () => {
+    if (!user) {
+      console.log("❌ Usuário não logado, não carregando eventos");
+      return;
+    }
+
     setLoadingEventos(true);
     try {
+      console.log("📅 Carregando eventos Kids...");
       const eventsRef = collection(db, "churchBasico", "ministerios", "conteudo", "kids", "events");
       const querySnapshot = await getDocs(eventsRef);
       
       const eventos = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        if (data.isActive) { // Apenas eventos ativos
+        if (data.isActive) {
           eventos.push({ id: doc.id, ...data });
         }
       });
@@ -132,125 +138,158 @@ export default function HomeScreen() {
       // Ordenar por data mais próxima
       eventos.sort((a, b) => new Date(a.date) - new Date(b.date));
       setEventosKids(eventos);
+      console.log(`✅ ${eventos.length} eventos Kids carregados`);
     } catch (error) {
-      console.log("Erro ao carregar eventos Kids:", error);
+      console.log("❌ Erro ao carregar eventos Kids:", error);
+      setEventosKids([]);
     } finally {
       setLoadingEventos(false);
     }
-  };
+  }, [user]);
 
-  // NOVA FUNÇÃO: Verificar se o usuário tem ministérios
-  const verificarMinisterios = async () => {
-    if (!user) return;
+  // FUNÇÃO CORRIGIDA: Verificar se o usuário tem ministérios
+  const verificarMinisterios = useCallback(async () => {
+    if (!user) {
+      console.log("❌ Usuário não logado, não verificando ministérios");
+      return;
+    }
     
     setLoadingMinisterios(true);
     try {
+      console.log("🔍 Verificando ministérios do usuário...");
       let temMinisterios = false;
 
-      // Verificar ministério de Comunicação
-      const comunicacaoRef = collection(db, "churchBasico", "ministerios", "conteudo", "comunicacao", "membros");
-      const comunicacaoQuery = query(comunicacaoRef, where("userId", "==", user.uid));
-      const comunicacaoSnapshot = await getDocs(comunicacaoQuery);
-      if (!comunicacaoSnapshot.empty) {
-        temMinisterios = true;
-      }
+      // Array com todos os ministérios para verificar
+      const ministeriosParaVerificar = [
+        { nome: "comunicacao", caminho: ["churchBasico", "ministerios", "conteudo", "comunicacao", "membros"] },
+        { nome: "celula", caminho: ["churchBasico", "ministerios", "conteudo", "celula", "membros"] },
+        { nome: "kids", caminho: ["churchBasico", "ministerios", "conteudo", "kids", "membros"] },
+        { nome: "louvor", caminho: ["churchBasico", "ministerios", "conteudo", "louvor", "membros"] },
+        { nome: "diaconato", caminho: ["churchBasico", "ministerios", "conteudo", "diaconato", "membros"] },
+        { nome: "timeA", caminho: ["churchBasico", "ministerios", "conteudo", "diaconato", "times", "timeA", "membros"] },
+        { nome: "timeB", caminho: ["churchBasico", "ministerios", "conteudo", "diaconato", "times", "timeB", "membros"] },
+      ];
 
-      // Se não encontrou em comunicação, verificar células
-      if (!temMinisterios) {
-        const celulaRef = collection(db, "churchBasico", "ministerios", "conteudo", "celula", "membros");
-        const celulaQuery = query(celulaRef, where("userId", "==", user.uid));
-        const celulaSnapshot = await getDocs(celulaQuery);
-        if (!celulaSnapshot.empty) {
-          temMinisterios = true;
+      // Verificar cada ministério
+      for (const ministerio of ministeriosParaVerificar) {
+        if (temMinisterios) break; // Se já encontrou, não precisa continuar
+
+        try {
+          const ministerioRef = collection(db, ...ministerio.caminho);
+          const ministerioQuery = query(ministerioRef, where("userId", "==", user.uid));
+          const ministerioSnapshot = await getDocs(ministerioQuery);
+          
+          if (!ministerioSnapshot.empty) {
+            console.log(`✅ Usuário encontrado no ministério: ${ministerio.nome}`);
+            temMinisterios = true;
+            break;
+          }
+        } catch (error) {
+          console.log(`❌ Erro ao verificar ${ministerio.nome}:`, error);
         }
       }
 
-      // Se não encontrou ainda, verificar kids
-      if (!temMinisterios) {
-        const kidsRef = collection(db, "churchBasico", "ministerios", "conteudo", "kids", "membros");
-        const kidsQuery = query(kidsRef, where("userId", "==", user.uid));
-        const kidsSnapshot = await getDocs(kidsQuery);
-        if (!kidsSnapshot.empty) {
-          temMinisterios = true;
-        }
-      }
-
-      // Se não encontrou ainda, verificar louvor
-      if (!temMinisterios) {
-        const louvorRef = collection(db, "churchBasico", "ministerios", "conteudo", "louvor", "membros");
-        const louvorQuery = query(louvorRef, where("userId", "==", user.uid));
-        const louvorSnapshot = await getDocs(louvorRef);
-        if (!louvorSnapshot.empty) {
-          temMinisterios = true;
-        }
-      }
-
+      console.log("🔍 Resultado da verificação de ministérios:", temMinisterios);
       setHasMinisterios(temMinisterios);
+      
     } catch (error) {
-      console.log("Erro ao verificar ministérios:", error);
+      console.log("❌ Erro geral ao verificar ministérios:", error);
+      setHasMinisterios(false);
     } finally {
       setLoadingMinisterios(false);
     }
-  };
+  }, [user]);
 
+  // FUNÇÃO OTIMIZADA: Buscar role do usuário
+  const fetchUserRole = useCallback(async () => {
+    setIsLoadingRole(true);
+    console.log("🔄 Iniciando fetchUserRole...");
+
+    if (!user) {
+      console.log("❌ Nenhum usuário logado. Limpando userRole.");
+      setUserRole(null);
+      setAdminPageRoute(null);
+      setHasMinisterios(false);
+      setIsLoadingRole(false);
+      return;
+    }
+
+    console.log("👤 Usuário logado:", user.uid);
+    
+    try {
+      // Primeiro, tentar buscar em lideres
+      console.log("🔍 Tentando buscar em lideres...");
+      const docRefLideres = doc(db, "churchBasico", "users", "lideres", user.uid);
+      const docSnapLideres = await getDoc(docRefLideres);
+
+      if (docSnapLideres.exists()) {
+        const data = docSnapLideres.data();
+        console.log("✅ Encontrado em lideres! Dados:", data);
+        setUserRole(data.userType);
+        setAdminPageRoute(data.page || null);
+        setHasMinisterios(false); // Líderes não precisam da verificação de ministérios
+      } else {
+        // Se não encontrou em lideres, tentar em members
+        console.log("🔍 Não encontrado em lideres. Tentando buscar em members...");
+        const docRefMembers = doc(db, "churchBasico", "users", "members", user.uid);
+        const docSnapMembers = await getDoc(docRefMembers);
+
+        if (docSnapMembers.exists()) {
+          const data = docSnapMembers.data();
+          console.log("✅ Encontrado em members! Dados:", data);
+          setUserRole(data.userType);
+          setAdminPageRoute(null);
+          
+          // IMPORTANTE: Verificar ministérios se for membro (SEM AWAIT AQUI)
+          if (data.userType === "member") {
+            console.log("🔍 É membro, verificando ministérios...");
+            verificarMinisterios(); // Chama sem await para não bloquear
+          } else {
+            setHasMinisterios(false);
+          }
+        } else {
+          console.log("❌ Usuário não encontrado em lideres nem members.");
+          setUserRole(null);
+          setAdminPageRoute(null);
+          setHasMinisterios(false);
+        }
+      }
+    } catch (error) {
+      console.error("❌ ERRO ao buscar role do usuário:", error);
+      
+      // Tratamento específico para erro de permissão
+      if (error.code === 'permission-denied') {
+        console.log("🚫 Erro de permissão detectado. Verifique as regras do Firestore.");
+        Alert.alert(
+          "Erro de Permissão",
+          "Não foi possível acessar os dados do usuário. Verifique sua conexão e tente novamente.",
+          [{ text: "OK" }]
+        );
+      }
+      
+      setUserRole(null);
+      setAdminPageRoute(null);
+      setHasMinisterios(false);
+    } finally {
+      setIsLoadingRole(false);
+      console.log("✅ fetchUserRole concluído.");
+    }
+  }, [user, verificarMinisterios]);
+
+  // Effects otimizados
   useEffect(() => {
     selecionarVersiculoDoDia();
-    carregarEventosKids();
+  }, [selecionarVersiculoDoDia]);
 
-    const fetchUserRole = async () => {
-      setIsLoadingRole(true);
-      console.log("Iniciando fetchUserRole...");
+  useEffect(() => {
+    if (user) {
+      carregarEventosKids();
+    }
+  }, [user, carregarEventosKids]);
 
-      if (auth.currentUser) {
-        console.log("Usuário logado:", auth.currentUser.uid);
-        try {
-          let docRefLideres = doc(db, "churchBasico", "users", "lideres", auth.currentUser.uid);
-          console.log("Tentando buscar em lideres:", docRefLideres.path);
-          let docSnapLideres = await getDoc(docRefLideres);
-
-          if (docSnapLideres.exists()) {
-            const data = docSnapLideres.data();
-            console.log("Encontrado em lideres! Dados:", data);
-            setUserRole(data.userType);
-            setAdminPageRoute(data.page || null);
-            console.log("userRole definido para:", data.userType);
-          } else {
-            console.log("Não encontrado em lideres. Tentando buscar em members...");
-            let docRefMembers = doc(db, "churchBasico", "users", "members", auth.currentUser.uid);
-            console.log("Tentando buscar em members:", docRefMembers.path);
-            let docSnapMembers = await getDoc(docRefMembers);
-
-            if (docSnapMembers.exists()) {
-              const data = docSnapMembers.data();
-              console.log("Encontrado em members! Dados:", data);
-              setUserRole(data.userType);
-              setAdminPageRoute(null);
-              console.log("userRole definido para:", data.userType);
-              
-              // NOVO: Verificar ministérios se for membro
-              if (data.userType === "member") {
-                await verificarMinisterios();
-              }
-            } else {
-              console.log("Usuário não encontrado em lideres nem members.");
-              setUserRole(null);
-              setAdminPageRoute(null);
-            }
-          }
-        } catch (error) {
-          console.error("ERRO ao buscar role do usuário:", error);
-          setUserRole(null);
-        }
-      } else {
-        console.log("Nenhum usuário logado. Limpando userRole.");
-        setUserRole(null);
-      }
-      setIsLoadingRole(false);
-      console.log("fetchUserRole concluído.");
-    };
-
+  useEffect(() => {
     fetchUserRole();
-  }, [auth.currentUser]);
+  }, [user]); // Removido fetchUserRole das dependências para evitar loop
 
   const handleGerenciarMinisterios = () => {
     if (userRole === "admin" && adminPageRoute) {
@@ -265,7 +304,6 @@ export default function HomeScreen() {
     navigation.navigate("AdminMaster");
   };
 
-  // NOVA FUNÇÃO: Navegar para a página de ministérios do membro
   const handleVerMinisterios = () => {
     navigation.navigate("MinisterioMembros");
   };
@@ -299,7 +337,9 @@ export default function HomeScreen() {
 
         {/* Botões de gerenciamento baseados no papel do usuário */}
         {isLoadingRole ? (
-          <Text style={{ textAlign: 'center', marginTop: 20 }}>Carregando permissões...</Text>
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Carregando permissões...</Text>
+          </View>
         ) : (
           <>
             {/* Botão para AdminMaster */}
@@ -322,8 +362,8 @@ export default function HomeScreen() {
               </View>
             )}
 
-            {/* NOVO: Botão para Membros que participam de ministérios */}
-            {userRole === "member" && hasMinisterios && !loadingMinisterios && (
+            {/* Botão para Membros que participam de ministérios */}
+            {userRole === "member" && hasMinisterios && (
               <View style={styles.adminSection}>
                 <TouchableOpacity style={styles.memberButton} onPress={handleVerMinisterios}>
                   <Ionicons name="star-outline" size={20} color="#fff" style={styles.adminIcon} />
@@ -331,11 +371,22 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </View>
             )}
+
+            {/* Debug: Mostrar informações do usuário */}
+            {__DEV__ && user && (
+              <View style={styles.debugContainer}>
+                <Text style={styles.debugText}>DEBUG INFO:</Text>
+                <Text style={styles.debugText}>UserRole: {userRole || 'null'}</Text>
+                <Text style={styles.debugText}>AdminPage: {adminPageRoute || 'null'}</Text>
+                <Text style={styles.debugText}>HasMinisterios: {hasMinisterios.toString()}</Text>
+                <Text style={styles.debugText}>LoadingMinisterios: {loadingMinisterios.toString()}</Text>
+              </View>
+            )}
           </>
         )}
 
         {/* Verificação se o usuário está logado */}
-        {!user && !userData && (
+        {!user && (
           <View style={styles.notLoggedContainer}>
             <Text style={styles.notLoggedText}>Você não está logado</Text>
             <View style={styles.buttonRow}>
@@ -511,6 +562,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#e0e0e0",
     flex: 1,
   },
+  loadingContainer: {
+    padding: 20,
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+  },
   notLoggedContainer: {
     padding: 16,
     alignItems: "center",
@@ -560,16 +620,15 @@ const styles = StyleSheet.create({
   adminMasterButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#007aff', // Cor diferente para destacar o AdminMaster
+    backgroundColor: '#007aff',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
   },
-  // NOVO: Estilo para o botão de membros
   memberButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FF6B35', // Cor laranja para membros
+    backgroundColor: '#FF6B35',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
@@ -693,12 +752,6 @@ const styles = StyleSheet.create({
     color: "#666",
     lineHeight: 18,
   },
-  loadingText: {
-    fontSize: 14,
-    color: "#666",
-    textAlign: "center",
-    paddingVertical: 10,
-  },
   nenhumEventoText: {
     fontSize: 14,
     color: "#999",
@@ -818,5 +871,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     marginLeft: 12,
+  },
+  // Estilos de debug
+  debugContainer: {
+    backgroundColor: "#f0f0f0",
+    margin: 15,
+    padding: 10,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: "#ccc",
+  },
+  debugText: {
+    fontSize: 12,
+    color: "#333",
+    marginBottom: 2,
   },
 });
