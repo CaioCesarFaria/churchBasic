@@ -24,19 +24,25 @@
             "supportsMixingWithOthers": true,
             "category": "playback",
             "mode": "default",
-            "categoryOptions": ["mixWithOthers", "duckOthers"],
+            "categoryOptions": [
+              "mixWithOthers",
+              "duckOthers"
+            ],
             "activateAudioSessionOnSetup": true
           }
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-asset"
     ],
     "ios": {
-      "buildNumber": "1",
+      "buildNumber": "2",
       "supportsTablet": false,
       "bundleIdentifier": "com.igrejabasico.app",
       "infoPlist": {
-        "UIBackgroundModes": ["audio"],
+        "UIBackgroundModes": [
+          "audio"
+        ],
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppleMusicUsageDescription": "Este app reproduz conteúdo de rádio cristã em segundo plano.",
         "AVAudioSessionCategoryPlayback": true,
@@ -44,7 +50,7 @@
       }
     },
     "android": {
-      "versionCode": 2,
+      "versionCode": 3,
       "package": "com.igrejabasico.app",
       "edgeToEdgeEnabled": true,
       "adaptiveIcon": {

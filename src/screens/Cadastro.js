@@ -88,11 +88,6 @@ export default function CadastroScreen({ navigation }) {
       return;
     }
 
-    if (!diaNascimento || !mesNascimento || !anoNascimento) {
-      Alert.alert("Erro", "Por favor, preencha sua data de nascimento completa");
-      return;
-    }
-
     if (!acceptTerms) {
       Alert.alert("Erro", "Você deve aceitar os termos de privacidade para continuar");
       return;
@@ -114,25 +109,33 @@ export default function CadastroScreen({ navigation }) {
       return;
     }
 
-    // Validar data de nascimento
-    const dia = parseInt(diaNascimento);
-    const mes = parseInt(mesNascimento);
-    const ano = parseInt(anoNascimento);
-    
-    const dataCompleta = new Date(ano, mes - 1, dia);
-    if (dataCompleta.getDate() !== dia || dataCompleta.getMonth() !== mes - 1) {
-      Alert.alert("Erro", "Data de nascimento inválida");
-      return;
-    }
+    // Validar data de nascimento apenas se foi preenchida
+    if (diaNascimento || mesNascimento || anoNascimento) {
+      // Se algum campo foi preenchido, todos devem estar preenchidos
+      if (!diaNascimento || !mesNascimento || !anoNascimento) {
+        Alert.alert("Erro", "Preencha a data de nascimento completa ou deixe todos os campos vazios");
+        return;
+      }
 
-    const hoje = new Date();
-    const idade = hoje.getFullYear() - ano;
-    const mesAtual = hoje.getMonth() + 1;
-    const diaAtual = hoje.getDate();
-    
-    if (idade < 13 || (idade === 13 && (mes > mesAtual || (mes === mesAtual && dia > diaAtual)))) {
-      Alert.alert("Erro", "Você deve ter pelo menos 13 anos para se cadastrar");
-      return;
+      const dia = parseInt(diaNascimento);
+      const mes = parseInt(mesNascimento);
+      const ano = parseInt(anoNascimento);
+      
+      const dataCompleta = new Date(ano, mes - 1, dia);
+      if (dataCompleta.getDate() !== dia || dataCompleta.getMonth() !== mes - 1) {
+        Alert.alert("Erro", "Data de nascimento inválida");
+        return;
+      }
+
+      const hoje = new Date();
+      const idade = hoje.getFullYear() - ano;
+      const mesAtual = hoje.getMonth() + 1;
+      const diaAtual = hoje.getDate();
+      
+      if (idade < 13 || (idade === 13 && (mes > mesAtual || (mes === mesAtual && dia > diaAtual)))) {
+        Alert.alert("Erro", "Você deve ter pelo menos 13 anos para se cadastrar");
+        return;
+      }
     }
 
     setLoading(true);
@@ -145,21 +148,27 @@ export default function CadastroScreen({ navigation }) {
         displayName: nome
       });
       
-      const dataNascimentoFormatada = `${diaNascimento}/${mesNascimento}/${anoNascimento}`;
-      
-      // Salvar em churchBasico/users/members (seguindo a estrutura correta)
-      await setDoc(doc(db, "churchBasico", "users", "members", user.uid), {
+      // Preparar dados do usuário
+      const userData = {
         name: nome,
         email: email,
         phone: celular || null,
-        birthDate: dataNascimentoFormatada,
-        birthDay: diaNascimento,
-        birthMonth: mesNascimento,
-        birthYear: anoNascimento,
         userType: "member",
         createdAt: serverTimestamp(),
         uid: user.uid
-      });
+      };
+
+      // Adicionar data de nascimento apenas se foi preenchida
+      if (diaNascimento && mesNascimento && anoNascimento) {
+        const dataNascimentoFormatada = `${diaNascimento}/${mesNascimento}/${anoNascimento}`;
+        userData.birthDate = dataNascimentoFormatada;
+        userData.birthDay = diaNascimento;
+        userData.birthMonth = mesNascimento;
+        userData.birthYear = anoNascimento;
+      }
+      
+      // Salvar em churchBasico/users/members (seguindo a estrutura correta)
+      await setDoc(doc(db, "churchBasico", "users", "members", user.uid), userData);
 
       Alert.alert("Sucesso", "Cadastro realizado com sucesso!", [
         { text: "OK", onPress: () => navigation.navigate("Login") }
@@ -207,7 +216,7 @@ export default function CadastroScreen({ navigation }) {
               <Ionicons name="close" size={24} color="#333" />
             </TouchableOpacity>
           </View>
-          <ScrollView style={styles.modalList}>
+          <ScrollView style={styles.modalList} contentContainerStyle={styles.modalListContent}>
             {items.map((item) => (
               <TouchableOpacity
                 key={typeof item === 'object' ? item.value : item}
@@ -297,7 +306,10 @@ export default function CadastroScreen({ navigation }) {
 
             {/* Data de Nascimento */}
             <View style={styles.dateContainer}>
-              <Text style={styles.dateLabel}>Data de Nascimento*</Text>
+              <Text style={styles.dateLabel}>Data de Nascimento (Opcional)</Text>
+              <Text style={styles.dateObservation}>
+                Obs: Usaremos a data de nascimento para o mural de aniversários!
+              </Text>
               <View style={styles.dateRow}>
                 <TouchableOpacity 
                   style={styles.dateButton}
@@ -493,6 +505,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     color: "#333",
+    marginBottom: 5,
+  },
+  dateObservation: {
+    fontSize: 12,
+    color: "#666",
+    fontStyle: "italic",
     marginBottom: 10,
   },
   dateRow: {
@@ -595,6 +613,9 @@ const styles = StyleSheet.create({
   },
   modalList: {
     maxHeight: 400,
+  },
+  modalListContent: {
+    paddingBottom: 20,
   },
   modalItem: {
     paddingVertical: 15,

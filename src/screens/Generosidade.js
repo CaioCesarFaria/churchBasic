@@ -1,96 +1,31 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from 'expo-clipboard';
 
 export default function GenerosidadeScreen() {
-  const [selectedAmount, setSelectedAmount] = useState("");
-  const [customAmount, setCustomAmount] = useState("");
-  const [selectedType, setSelectedType] = useState("dizimo");
+  const cnpjIgreja = "55.808.585/0001-62";
 
-  const predefinedAmounts = ["50", "100", "200", "500"];
-
-  const handleDonate = () => {
-    const amount = selectedAmount || customAmount;
-    if (!amount || parseFloat(amount) <= 0) {
-      Alert.alert("Erro", "Por favor, selecione ou digite um valor válido");
-      return;
+  const handleCopyPix = async () => {
+    try {
+      await Clipboard.setStringAsync(cnpjIgreja);
+      Alert.alert(
+        "PIX Copiado!",
+        "O CNPJ da igreja foi copiado para a área de transferência. Cole no seu aplicativo bancário para fazer a contribuição.",
+        [{ text: "OK" }]
+      );
+    } catch (error) {
+      Alert.alert("Erro", "Não foi possível copiar o PIX. Tente novamente.");
     }
-
-    Alert.alert(
-      "Confirmar Doação",
-      `Deseja doar R$ ${amount} como ${selectedType === "dizimo" ? "Dízimo" : "Oferta"}?`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Confirmar",
-          onPress: () => {
-            Alert.alert("Sucesso!", "Obrigado pela sua generosidade! Você será redirecionado para o pagamento.");
-          },
-        },
-      ]
-    );
   };
-
-  const AmountButton = ({ amount, isSelected, onPress }) => (
-    <TouchableOpacity
-      style={[styles.amountButton, isSelected && styles.selectedAmountButton]}
-      onPress={onPress}
-    >
-      <Text
-        style={[
-          styles.amountButtonText,
-          isSelected && styles.selectedAmountButtonText,
-        ]}
-      >
-        R$ {amount}
-      </Text>
-    </TouchableOpacity>
-  );
-
-  const TypeButton = ({ type, title, description, isSelected, onPress }) => (
-    <TouchableOpacity
-      style={[styles.typeButton, isSelected && styles.selectedTypeButton]}
-      onPress={onPress}
-    >
-      <View style={styles.typeButtonContent}>
-        <View style={styles.typeHeader}>
-          <Text
-            style={[
-              styles.typeTitle,
-              isSelected && styles.selectedTypeTitle,
-            ]}
-          >
-            {title}
-          </Text>
-          <View
-            style={[
-              styles.radioCircle,
-              isSelected && styles.selectedRadioCircle,
-            ]}
-          >
-            {isSelected && <View style={styles.radioInner} />}
-          </View>
-        </View>
-        <Text
-          style={[
-            styles.typeDescription,
-            isSelected && styles.selectedTypeDescription,
-          ]}
-        >
-          {description}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -116,102 +51,31 @@ export default function GenerosidadeScreen() {
           <Text style={styles.heroReference}>2 Coríntios 9:7</Text>
         </View>
 
-        {/* Type Selection */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tipo de Contribuição</Text>
-          <TypeButton
-            type="dizimo"
-            title="Dízimo"
-            description="10% da renda como gratidão a Deus"
-            isSelected={selectedType === "dizimo"}
-            onPress={() => setSelectedType("dizimo")}
-          />
-          <TypeButton
-            type="oferta"
-            title="Oferta"
-            description="Contribuição voluntária adicional"
-            isSelected={selectedType === "oferta"}
-            onPress={() => setSelectedType("oferta")}
-          />
+        {/* PIX Section */}
+        <View style={styles.pixSection}>
+          <View style={styles.pixIconContainer}>
+            <Ionicons name="phone-portrait-outline" size={48} color="#B8986A" />
+          </View>
+          <Text style={styles.pixTitle}>Contribua via PIX</Text>
+          <Text style={styles.pixSubtitle}>
+            Copie o CNPJ da igreja e faça sua contribuição diretamente pelo seu aplicativo bancário
+          </Text>
         </View>
 
-        {/* Amount Selection */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Valor da Contribuição</Text>
-          
-          <View style={styles.amountsGrid}>
-            {predefinedAmounts.map((amount) => (
-              <AmountButton
-                key={amount}
-                amount={amount}
-                isSelected={selectedAmount === amount && !customAmount}
-                onPress={() => {
-                  setSelectedAmount(amount);
-                  setCustomAmount("");
-                }}
-              />
-            ))}
-          </View>
-
-          <Text style={styles.orText}>ou</Text>
-
-          <View style={styles.customAmountContainer}>
-            <Text style={styles.currencySymbol}>R$</Text>
-            <TextInput
-              style={styles.customAmountInput}
-              placeholder="Digite o valor"
-              value={customAmount}
-              onChangeText={(text) => {
-                setCustomAmount(text);
-                setSelectedAmount("");
-              }}
-              keyboardType="numeric"
-            />
-          </View>
-        </View>
-
-        {/* Payment Methods */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Métodos de Pagamento</Text>
-          
-          <View style={styles.paymentMethods}>
-            <TouchableOpacity style={styles.paymentMethod}>
-              <Ionicons name="card-outline" size={24} color="#B8986A" />
-              <Text style={styles.paymentMethodText}>Cartão de Crédito</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.paymentMethod}>
-              <Ionicons name="phone-portrait-outline" size={24} color="#B8986A" />
-              <Text style={styles.paymentMethodText}>PIX</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.paymentMethod}>
-              <Ionicons name="business-outline" size={24} color="#B8986A" />
-              <Text style={styles.paymentMethodText}>Débito Automático</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Donate Button */}
-        <View style={styles.donateContainer}>
+        {/* Copy PIX Button */}
+        <View style={styles.copyContainer}>
           <TouchableOpacity
-            style={[
-              styles.donateButton,
-              (!selectedAmount && !customAmount) && styles.disabledDonateButton,
-            ]}
-            onPress={handleDonate}
-            disabled={!selectedAmount && !customAmount}
+            style={styles.copyButton}
+            onPress={handleCopyPix}
           >
-            <Ionicons name="heart" size={20} color="#fff" />
-            <Text style={styles.donateButtonText}>
-              Contribuir {selectedAmount || customAmount ? `R$ ${selectedAmount || customAmount}` : ''}
-            </Text>
+            <Ionicons name="copy-outline" size={20} color="#fff" />
+            <Text style={styles.copyButtonText}>Copiar PIX</Text>
           </TouchableOpacity>
           
-          <Text style={styles.securityNote}>
-            <Ionicons name="shield-checkmark" size={14} color="#666" />
-            {" "}Transação 100% segura e criptografada
-          </Text>
+          <View style={styles.cnpjContainer}>
+            <Ionicons name="business" size={16} color="#666" />
+            <Text style={styles.cnpjText}>CNPJ: {cnpjIgreja}</Text>
+          </View>
         </View>
 
         {/* Info Section */}
@@ -308,174 +172,87 @@ const styles = StyleSheet.create({
     color: "#B8986A",
     fontWeight: "600",
   },
-  section: {
+  pixSection: {
     backgroundColor: "#fff",
+    alignItems: "center",
+    paddingVertical: 30,
+    paddingHorizontal: 30,
     marginHorizontal: 20,
     marginBottom: 20,
-    borderRadius: 15,
-    padding: 20,
+    borderRadius: 20,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 15,
-  },
-  typeButton: {
-    borderWidth: 2,
-    borderColor: "#e0e0e0",
-    borderRadius: 15,
-    padding: 15,
-    marginBottom: 10,
-  },
-  selectedTypeButton: {
-    borderColor: "#B8986A",
+  pixIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     backgroundColor: "#FFF8F0",
-  },
-  typeButtonContent: {
-    flex: 1,
-  },
-  typeHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  typeTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-  },
-  selectedTypeTitle: {
-    color: "#B8986A",
-  },
-  radioCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#e0e0e0",
     alignItems: "center",
     justifyContent: "center",
-  },
-  selectedRadioCircle: {
+    marginBottom: 20,
+    borderWidth: 2,
     borderColor: "#B8986A",
   },
-  radioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#B8986A",
-  },
-  typeDescription: {
-    fontSize: 14,
-    color: "#666",
-  },
-  selectedTypeDescription: {
-    color: "#888",
-  },
-  amountsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-  amountButton: {
-    width: "48%",
-    paddingVertical: 15,
-    borderWidth: 2,
-    borderColor: "#e0e0e0",
-    borderRadius: 12,
-    alignItems: "center",
+  pixTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#333",
     marginBottom: 10,
-  },
-  selectedAmountButton: {
-    borderColor: "#B8986A",
-    backgroundColor: "#FFF8F0",
-  },
-  amountButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#666",
-  },
-  selectedAmountButtonText: {
-    color: "#B8986A",
-  },
-  orText: {
     textAlign: "center",
-    color: "#999",
+  },
+  pixSubtitle: {
     fontSize: 14,
-    marginVertical: 15,
-  },
-  customAmountContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#e0e0e0",
-    borderRadius: 12,
-    paddingHorizontal: 15,
-  },
-  currencySymbol: {
-    fontSize: 16,
     color: "#666",
-    fontWeight: "600",
-    marginRight: 10,
+    textAlign: "center",
+    lineHeight: 20,
   },
-  customAmountInput: {
-    flex: 1,
-    paddingVertical: 15,
-    fontSize: 16,
-    color: "#333",
-  },
-  paymentMethods: {
-    gap: 12,
-  },
-  paymentMethod: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 15,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    borderRadius: 12,
-    backgroundColor: "#fafafa",
-  },
-  paymentMethodText: {
-    marginLeft: 12,
-    fontSize: 16,
-    color: "#333",
-    fontWeight: "500",
-  },
-  donateContainer: {
+  copyContainer: {
     paddingHorizontal: 20,
     marginBottom: 30,
   },
-  donateButton: {
+  copyButton: {
     backgroundColor: "#B8986A",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 18,
     borderRadius: 25,
-    marginBottom: 10,
+    marginBottom: 15,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  disabledDonateButton: {
-    backgroundColor: "#ccc",
-    opacity: 0.7,
-  },
-  donateButtonText: {
+  copyButtonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "700",
     marginLeft: 8,
   },
-  securityNote: {
-    textAlign: "center",
-    fontSize: 12,
+  cnpjContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  cnpjText: {
+    fontSize: 14,
     color: "#666",
+    fontWeight: "600",
+    marginLeft: 8,
   },
   infoSection: {
     backgroundColor: "#fff",
